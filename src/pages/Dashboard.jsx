@@ -1,0 +1,51 @@
+import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import SuperAdminDashboard from '../components/dashboards/SuperAdminDashboard';
+import StudentDashboard from '../components/dashboards/StudentDashboard';
+import FacultyDashboard from '../components/dashboards/FacultyDashboard';
+
+const Dashboard = () => {
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
+
+  if (!profile) {
+    return <div className="container flex-center" style={{ minHeight: '80vh' }}>Loading...</div>;
+  }
+
+  return (
+    <div className="container" style={{ padding: '2rem 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div>
+          <h2>Welcome, {profile.name}</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>Role: {profile.role}</p>
+        </div>
+        <button onClick={handleLogout} className="btn btn-outline" style={{ display: 'flex', gap: '0.5rem' }}>
+          <LogOut size={18} /> Logout
+        </button>
+      </div>
+
+      <div className="glass-panel">
+        {profile.role === 'super_admin' && (
+          <SuperAdminDashboard />
+        )}
+
+        {profile.role === 'faculty' && (
+          <FacultyDashboard />
+        )}
+
+        {profile.role === 'student' && (
+          <StudentDashboard />
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
