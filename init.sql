@@ -13,7 +13,7 @@ CREATE TABLE public.profiles (
   name TEXT NOT NULL,
   department TEXT NOT NULL,
   division TEXT,
-  prp_code TEXT,
+  prp_code TEXT UNIQUE,
   phone_number TEXT UNIQUE NOT NULL,
   roll_number TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -59,6 +59,7 @@ CREATE TABLE public.events (
   end_time TIME,
   restrict_to_members BOOLEAN NOT NULL DEFAULT true,
   co_hosts UUID[] NOT NULL DEFAULT '{}',
+  venue TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

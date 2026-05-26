@@ -80,27 +80,30 @@ const ClubDetail = () => {
   // Determine current user's membership details
   const myMembership = memberships.find(m => m.user_id === user?.id);
   const isCampusLead = chapter?.campus_lead_id === user?.id;
-  const isApprovedMember = isCampusLead || myMembership?.status === 'approved';
+  const isFaculty = profile?.role === 'faculty';
+  const isApprovedMember = isCampusLead || myMembership?.status === 'approved' || isFaculty;
   const isSuperAdmin = profile?.role === 'super_admin';
-  const isLeader = isSuperAdmin || isCampusLead || (isApprovedMember && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
-  const canManageRoles = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && myMembership?.role === 'core_team');
+  const isLeader = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
+  const canManageRoles = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
 
-  // Access Control: Block if not super admin and not an approved member
-  if (!loading && !isSuperAdmin && !isApprovedMember) {
-    return (
-      <div className="container flex-center" style={{ minHeight: '60vh' }}>
-        <div className="glass-panel text-center" style={{ maxWidth: '500px' }}>
-          <h2 style={{ color: 'var(--danger-color)', marginBottom: '1rem' }}>Access Denied</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            You must be an approved member of this club to view its details.
-          </p>
-          <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleApply = async () => {
+    try {
+      const { error } = await supabase
+        .from('club_members')
+        .insert([{
+          chapter_id: chapterId,
+          user_id: user?.id,
+          role: 'member',
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+      alert('Application submitted successfully!');
+      await fetchClubData();
+    } catch (err) {
+      alert('Failed to apply: ' + err.message);
+    }
+  };
 
   // Handle Request Actions
   const handleRequestAction = async (membershipId, newStatus) => {
@@ -324,7 +327,7 @@ const ClubDetail = () => {
       {/* Chapter Details Banner */}
       {chapter && (
         <div className="glass-panel" style={{ marginBottom: '2rem', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h2 style={{ margin: '0 0 0.5rem 0' }}>{chapter.name}</h2>
               <p style={{ color: 'var(--primary-color)', fontWeight: 'bold', margin: '0 0 1rem 0' }}>
@@ -335,14 +338,53 @@ const ClubDetail = () => {
               </p>
             </div>
             
-            {isLeader && (
-              <button 
-                className="btn btn-primary animate-hover" 
-                onClick={() => navigate(`/host-event?chapterId=${chapterId}`)}
-              >
-                Host Event
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {profile?.role === 'student' && (
+                <div>
+                  {!myMembership ? (
+                    <button 
+                      className="btn btn-primary animate-hover" 
+                      onClick={handleApply}
+                    >
+                      Apply to Join Club
+                    </button>
+                  ) : myMembership.status === 'pending' ? (
+                    <span style={{ 
+                      padding: '0.5rem 1rem', 
+                      borderRadius: '1rem', 
+                      fontSize: '0.875rem', 
+                      fontWeight: 'bold',
+                      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                      color: '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                      Application Pending
+                    </span>
+                  ) : myMembership.status === 'rejected' ? (
+                    <span style={{ 
+                      padding: '0.5rem 1rem', 
+                      borderRadius: '1rem', 
+                      fontSize: '0.875rem', 
+                      fontWeight: 'bold',
+                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                      color: 'var(--danger-color)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)'
+                    }}>
+                      Application Rejected
+                    </span>
+                  ) : null}
+                </div>
+              )}
+
+              {isLeader && (
+                <button 
+                  className="btn btn-primary animate-hover" 
+                  onClick={() => navigate(`/host-event?chapterId=${chapterId}`)}
+                >
+                  Host Event
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -361,7 +403,7 @@ const ClubDetail = () => {
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottom: activeTab === 'members' ? '2px solid var(--primary-color)' : 'none' }}
           onClick={() => setActiveTab('members')}
         >
-          Members ({approvedMembers.length})
+          Members ({studentMembers.length})
         </button>
         {isLeader && (
           <button 
@@ -386,11 +428,29 @@ const ClubDetail = () => {
           ) : (
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginBottom: '2.5rem' }}>
               {upcomingEvents.map(event => (
-                <div key={event.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0' }}>{event.name}</h4>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                    Date: {new Date(event.event_date).toLocaleDateString()}
-                  </p>
+                <div key={event.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <h4 style={{ margin: 0 }}>{event.name}</h4>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        padding: '0.15rem 0.4rem',
+                        borderRadius: '0.25rem',
+                        whiteSpace: 'nowrap',
+                        backgroundColor: event.restrict_to_members ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                        color: event.restrict_to_members ? 'var(--danger-color)' : 'var(--secondary-color)',
+                        border: `1px solid ${event.restrict_to_members ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                      }}>
+                        {event.restrict_to_members ? 'Members Only' : 'Open to All'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Date: {new Date(event.event_date).toLocaleDateString()}
+                    </p>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Venue: {event.venue || 'Not specified'}
+                    </p>
+                  </div>
                   
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                     <button 
@@ -422,11 +482,29 @@ const ClubDetail = () => {
           ) : (
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
               {pastEvents.map(event => (
-                <div key={event.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0' }}>{event.name}</h4>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                    Date: {new Date(event.event_date).toLocaleDateString()}
-                  </p>
+                <div key={event.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <h4 style={{ margin: 0 }}>{event.name}</h4>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        padding: '0.15rem 0.4rem',
+                        borderRadius: '0.25rem',
+                        whiteSpace: 'nowrap',
+                        backgroundColor: event.restrict_to_members ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                        color: event.restrict_to_members ? 'var(--danger-color)' : 'var(--secondary-color)',
+                        border: `1px solid ${event.restrict_to_members ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                      }}>
+                        {event.restrict_to_members ? 'Members Only' : 'Open to All'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Date: {new Date(event.event_date).toLocaleDateString()}
+                    </p>
+                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      Venue: {event.venue || 'Not specified'}
+                    </p>
+                  </div>
                   
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                     <button 

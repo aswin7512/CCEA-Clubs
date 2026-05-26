@@ -22,6 +22,7 @@ const HostEvent = () => {
   const [chapterId, setChapterId] = useState(initialChapterId);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [venue, setVenue] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [admissionType, setAdmissionType] = useState('auto_accept');
   
@@ -96,6 +97,7 @@ const HostEvent = () => {
       
       setName(event.name || '');
       setDescription(event.description || '');
+      setVenue(event.venue || '');
       if (event.event_date) {
         const dateObj = new Date(event.event_date);
         const yyyy = dateObj.getFullYear();
@@ -204,6 +206,7 @@ const HostEvent = () => {
             chapter_id: chapterId,
             name,
             description,
+            venue: venue || null,
             event_date: new Date(eventDate).toISOString(),
             admission_type: admissionType,
             is_during_class_hours: isDuringClassHours,
@@ -253,6 +256,7 @@ const HostEvent = () => {
             chapter_id: chapterId,
             name,
             description,
+            venue: venue || null,
             event_date: new Date(eventDate).toISOString(),
             admission_type: admissionType,
             is_during_class_hours: isDuringClassHours,
@@ -352,6 +356,17 @@ const HostEvent = () => {
           <div className="form-group">
             <label className="form-label">Description</label>
             <textarea className="form-control" value={description} onChange={e => setDescription(e.target.value)} rows="3" required />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Venue (Optional)</label>
+            <input 
+              type="text" 
+              className="form-control" 
+              value={venue} 
+              onChange={e => setVenue(e.target.value)} 
+              placeholder="e.g. Seminar Hall, Lab 3, Online"
+            />
           </div>
 
           {/* Co-hosts Selection */}

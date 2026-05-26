@@ -13,7 +13,7 @@ const Register = () => {
   const [prpCode, setPrpCode] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -24,7 +24,7 @@ const Register = () => {
     try {
       setError('');
       setLoading(true);
-      
+
       const profileData = {
         role,
         name,
@@ -50,6 +50,20 @@ const Register = () => {
         throw new Error('This phone number is already registered.');
       }
 
+      // Check if PRP Code is already registered for students
+      if (role === 'student' && prpCode) {
+        const { data: existingPRP, error: prpCheckError } = await supabase
+          .from('profiles')
+          .select('prp_code')
+          .eq('prp_code', prpCode)
+          .maybeSingle();
+
+        if (prpCheckError) throw prpCheckError;
+        if (existingPRP) {
+          throw new Error('This PRP Code is already registered.');
+        }
+      }
+
       await signUp(email, password, profileData);
       navigate('/dashboard'); // or redirect to a "verify email" page if email confirmation is required
     } catch (err) {
@@ -59,7 +73,7 @@ const Register = () => {
     }
   };
 
-  const departments = role === 'student' 
+  const departments = role === 'student'
     ? ['Computer Science', 'Electronics and Communication', 'Electrical and Electronics', 'Computer and Business Systems', 'Electrical and Computer', 'Mechanical', 'Civil']
     : ['Computer Science', 'Electronics and Communication', 'Electrical and Electronics', 'Computer and Business Systems', 'Electrical and Computer', 'Mechanical', 'Civil', 'Applied Science and Humanities'];
 
@@ -67,7 +81,7 @@ const Register = () => {
     <div className="container flex-center" style={{ minHeight: 'calc(100vh - 80px)', padding: '2rem 0' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '500px' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Create an Account</h2>
-        
+
         {error && (
           <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
             {error}
@@ -75,16 +89,16 @@ const Register = () => {
         )}
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className={`btn ${role === 'student' ? 'btn-primary' : 'btn-outline'}`}
             style={{ flex: 1 }}
             onClick={() => setRole('student')}
           >
             Student
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className={`btn ${role === 'faculty' ? 'btn-primary' : 'btn-outline'}`}
             style={{ flex: 1 }}
             onClick={() => setRole('faculty')}
@@ -98,7 +112,7 @@ const Register = () => {
             <label className="form-label">Full Name</label>
             <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
-          
+
           <div className="form-group">
             <label className="form-label">Email</label>
             <input type="email" className="form-control" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -129,7 +143,7 @@ const Register = () => {
               <div className="form-group">
                 <label className="form-label">Division</label>
                 <select className="form-control" value={division} onChange={(e) => setDivision(e.target.value)} required>
-                  <option value="">Select Division</option>
+                  <option value="">Select Division (Choose A if No Division)</option>
                   <option value="A">A</option>
                   <option value="B">B</option>
                 </select>

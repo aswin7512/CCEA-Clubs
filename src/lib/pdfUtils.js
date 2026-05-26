@@ -10,8 +10,24 @@ export const generateAttendancePDF = (event, registrations) => {
   const chapterName = event.chapter?.name || 'N/A';
   const eventDateStr = event.event_date ? new Date(event.event_date).toLocaleDateString() : 'N/A';
   
+  let headerMetaText = `Chapter: ${chapterName} | Date: ${eventDateStr}`;
+  if (!event.is_during_class_hours && event.start_time && event.end_time) {
+    const formatTime12Hr = (t) => {
+      if (!t) return '';
+      const p = t.split(':');
+      if (p.length < 2) return t;
+      let hours = parseInt(p[0], 10);
+      const minutes = p[1];
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours}:${minutes} ${ampm}`;
+    };
+    headerMetaText += ` (${formatTime12Hr(event.start_time)} - ${formatTime12Hr(event.end_time)})`;
+  }
+  
   doc.setFontSize(12);
-  doc.text(`Chapter: ${chapterName} | Date: ${eventDateStr}`, 14, 30);
+  doc.text(headerMetaText, 14, 30);
 
   const approvedRegs = (registrations || []).filter(r => r.status === 'approved');
   

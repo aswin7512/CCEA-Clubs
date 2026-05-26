@@ -254,123 +254,148 @@ const EventDetail = () => {
         <div style={{ padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
           <p style={{ margin: '0 0 0.5rem 0' }}><strong>Date:</strong> {new Date(event.event_date).toLocaleDateString()}</p>
           {event.is_during_class_hours ? (
-            <p style={{ margin: 0 }}><strong>Class Hours:</strong> {event.class_hours?.join(', ')}</p>
+            <p style={{ margin: '0 0 0.5rem 0' }}><strong>Class Hours:</strong> {event.class_hours?.join(', ')}</p>
           ) : (
-            <p style={{ margin: 0 }}><strong>Time:</strong> {event.start_time} - {event.end_time}</p>
+            <p style={{ margin: '0 0 0.5rem 0' }}><strong>Time:</strong> {event.start_time} - {event.end_time}</p>
           )}
+          <p style={{ margin: 0 }}><strong>Venue:</strong> {event.venue || 'Not specified'}</p>
         </div>
 
         <h4 style={{ marginBottom: '0.5rem' }}>About this Event</h4>
         <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{event.description}</p>
       </div>
 
-      {!hasApplied ? (
-        isEventOver(event) ? (
-          <div className="glass-panel text-center">
-            <h3>Event Concluded</h3>
-            <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>
-              This event has already ended. Registration is closed.
-            </p>
-          </div>
+      {profile?.role === 'faculty' && isEventOver(event) && (
+        <div className="glass-panel text-center" style={{ marginBottom: '2rem', border: '1px dashed var(--secondary-color)' }}>
+          <h3 style={{ marginBottom: '0.5rem' }}>Event Attendance</h3>
+          <p style={{ margin: '0.5rem 0 1.5rem 0', color: 'var(--text-secondary)' }}>
+            As a faculty member, you can download the consolidated attendance PDF for this past event.
+          </p>
+          <button 
+            className="btn btn-primary animate-hover" 
+            onClick={() => {
+              try {
+                generateAttendancePDF(event, allRegistrations);
+              } catch (err) {
+                alert("Failed to generate PDF: " + err.message);
+                console.error(err);
+              }
+            }}
+          >
+            Download Attendance Sheet
+          </button>
+        </div>
+      )}
+
+      {profile?.role !== 'faculty' && (
+        !hasApplied ? (
+          isEventOver(event) ? (
+            <div className="glass-panel text-center">
+              <h3>Event Concluded</h3>
+              <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>
+                This event has already ended. Registration is closed.
+              </p>
+            </div>
+          ) : (
+            <div className="glass-panel">
+              <h3 style={{ marginBottom: '1.5rem' }}>Registration Form</h3>
+              
+              {error && (
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitRegistration}>
+                {customFields.map((field) => (
+                  <div key={field.id} className="form-group">
+                    <label className="form-label">
+                      {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
+                    </label>
+
+                    {field.field_type === 'text' && (
+                      <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
+                    )}
+
+                    {field.field_type === 'paragraph' && (
+                      <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
+                    )}
+
+                    {field.field_type === 'option' && (
+                      <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
+                        <option value="">Select an option</option>
+                        {(field.options || []).map((opt, i) => (
+                          <option key={i} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    {field.field_type === 'checklist' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {(field.options || []).map((opt, i) => (
+                          <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={(formData[field.id] || []).includes(opt)}
+                              onChange={() => handleFieldChange(field.id, opt, 'checklist')}
+                            />
+                            {opt}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} disabled={submitting}>
+                  {submitting ? 'Submitting...' : 'Register for Event'}
+                </button>
+              </form>
+            </div>
+          )
         ) : (
-          <div className="glass-panel">
-            <h3 style={{ marginBottom: '1.5rem' }}>Registration Form</h3>
-            
-            {error && (
-              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
-                {error}
-              </div>
+          <div className="glass-panel text-center">
+            <h3>Registration Submitted</h3>
+            <p style={{ margin: '1rem 0' }}>
+              Your application status is: 
+              <span style={{ 
+                marginLeft: '0.5rem',
+                padding: '0.25rem 0.75rem', 
+                borderRadius: '1rem', 
+                fontSize: '0.875rem', 
+                fontWeight: 'bold',
+                textTransform: 'uppercase',
+                backgroundColor: applicationStatus === 'approved' ? 'rgba(16, 185, 129, 0.2)' : applicationStatus === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                color: applicationStatus === 'approved' ? 'var(--secondary-color)' : applicationStatus === 'rejected' ? 'var(--danger-color)' : '#f59e0b'
+              }}>
+                {applicationStatus}
+              </span>
+            </p>
+
+            {applicationStatus === 'approved' && isEventOver(event) && (
+              <button 
+                className="btn btn-primary" 
+                style={{ marginTop: '1rem' }}
+                onClick={() => {
+                  try {
+                    generateAttendancePDF(event, allRegistrations);
+                  } catch (err) {
+                    alert("Failed to generate PDF: " + err.message);
+                    console.error(err);
+                  }
+                }}
+              >
+                Download Attendance Sheet
+              </button>
             )}
 
-            <form onSubmit={handleSubmitRegistration}>
-              {customFields.map((field) => (
-                <div key={field.id} className="form-group">
-                  <label className="form-label">
-                    {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
-                  </label>
-
-                  {field.field_type === 'text' && (
-                    <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
-                  )}
-
-                  {field.field_type === 'paragraph' && (
-                    <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
-                  )}
-
-                  {field.field_type === 'option' && (
-                    <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
-                      <option value="">Select an option</option>
-                      {(field.options || []).map((opt, i) => (
-                        <option key={i} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {field.field_type === 'checklist' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {(field.options || []).map((opt, i) => (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={(formData[field.id] || []).includes(opt)}
-                            onChange={() => handleFieldChange(field.id, opt, 'checklist')}
-                          />
-                          {opt}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} disabled={submitting}>
-                {submitting ? 'Submitting...' : 'Register for Event'}
-              </button>
-            </form>
+            {applicationStatus === 'approved' && !isEventOver(event) && (
+              <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                The attendance sheet will be available to download after the event concludes.
+              </p>
+            )}
           </div>
         )
-      ) : (
-        <div className="glass-panel text-center">
-          <h3>Registration Submitted</h3>
-          <p style={{ margin: '1rem 0' }}>
-            Your application status is: 
-            <span style={{ 
-              marginLeft: '0.5rem',
-              padding: '0.25rem 0.75rem', 
-              borderRadius: '1rem', 
-              fontSize: '0.875rem', 
-              fontWeight: 'bold',
-              textTransform: 'uppercase',
-              backgroundColor: applicationStatus === 'approved' ? 'rgba(16, 185, 129, 0.2)' : applicationStatus === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-              color: applicationStatus === 'approved' ? 'var(--secondary-color)' : applicationStatus === 'rejected' ? 'var(--danger-color)' : '#f59e0b'
-            }}>
-              {applicationStatus}
-            </span>
-          </p>
-
-          {applicationStatus === 'approved' && isEventOver(event) && (
-            <button 
-              className="btn btn-primary" 
-              style={{ marginTop: '1rem' }}
-              onClick={() => {
-                try {
-                  generateAttendancePDF(event, allRegistrations);
-                } catch (err) {
-                  alert("Failed to generate PDF: " + err.message);
-                  console.error(err);
-                }
-              }}
-            >
-              Download Attendance Sheet
-            </button>
-          )}
-
-          {applicationStatus === 'approved' && !isEventOver(event) && (
-            <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-              The attendance sheet will be available to download after the event concludes.
-            </p>
-          )}
-        </div>
       )}
     </div>
   );
