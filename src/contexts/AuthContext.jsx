@@ -125,7 +125,14 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <div className="flex-center" style={{ minHeight: '100vh', flexDirection: 'column', gap: '1rem', backgroundColor: 'var(--bg-color)' }}>
+          <div className="loader"></div>
+          <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-family)', fontSize: '0.9rem', fontWeight: 500 }}>Initializing CCEA Clubs...</p>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

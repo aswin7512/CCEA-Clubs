@@ -1,45 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 :root {
   /* Common variables */
-  --font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-family: 'Outfit', system-ui, Avenir, Helvetica, Arial, sans-serif;
   --transition-speed: 0.3s;
   
-  /* Light Mode Variables */
-  --bg-color: #f3f4f6;
-  --text-color: #111827;
-  --text-secondary: #4b5563;
-  --primary-color: #3b82f6;
-  --primary-hover: #2563eb;
-  --secondary-color: #10b981;
-  --secondary-hover: #059669;
-  --danger-color: #ef4444;
+  /* Light Mode Variables (Red + Black + White) */
+  --bg-color: #fafafa;
+  --text-color: #121212;
+  --text-secondary: #555555;
+  --primary-color: #c2185b; /* Crimson Red */
+  --primary-hover: #b71c1c; /* Deep Red */
+  --secondary-color: #121212; /* Obsidian Black */
+  --secondary-hover: #262626;
+  --danger-color: #dc2626;
   
   /* Glassmorphism Light */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --glass-blur: blur(10px);
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.04), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  --glass-blur: blur(12px);
   
   /* Inputs */
-  --input-bg: rgba(255, 255, 255, 0.8);
-  --input-border: #d1d5db;
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: rgba(0, 0, 0, 0.12);
+  
+  /* Dynamic shadows */
+  --btn-primary-shadow: 0 4px 12px rgba(194, 24, 91, 0.2);
+  --btn-secondary-shadow: 0 4px 12px rgba(18, 18, 18, 0.1);
+  --input-focus-shadow: 0 0 0 3px rgba(194, 24, 91, 0.15);
 }
 
 [data-theme='dark'] {
-  /* Dark Mode Variables */
-  --bg-color: #0f172a;
-  --text-color: #f8fafc;
-  --text-secondary: #94a3b8;
-  --primary-color: #60a5fa;
-  --primary-hover: #3b82f6;
+  /* Dark Mode Variables (Red + Black + White) */
+  --bg-color: #08080a;
+  --text-color: #f5f5f7;
+  --text-secondary: #86868b;
+  --primary-color: #ef4444; /* Radiant Scarlet */
+  --primary-hover: #dc2626;
+  --secondary-color: #f5f5f7; /* Off-white */
+  --secondary-hover: #e8e8ed;
+  --danger-color: #ef4444;
   
   /* Glassmorphism Dark */
-  --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --glass-bg: rgba(18, 18, 20, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), 0 2px 4px 0 rgba(0, 0, 0, 0.2);
   
   /* Inputs */
-  --input-bg: rgba(15, 23, 42, 0.6);
-  --input-border: #334155;
+  --input-bg: rgba(12, 12, 14, 0.8);
+  --input-border: rgba(255, 255, 255, 0.1);
+  
+  /* Dynamic shadows */
+  --btn-primary-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+  --btn-secondary-shadow: 0 4px 12px rgba(245, 245, 247, 0.1);
+  --input-focus-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
 }
 
 * {
@@ -62,12 +77,14 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   margin-bottom: 0.5rem;
   color: var(--text-color);
+  letter-spacing: -0.02em;
 }
 
 a {
   color: var(--primary-color);
   text-decoration: none;
   transition: color 0.2s;
+  font-weight: 500;
 }
 
 a:hover {
@@ -88,7 +105,7 @@ a:hover {
 
 .glass-panel:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--glass-shadow);
 }
 
 /* Button Utilities */
@@ -101,14 +118,15 @@ a:hover {
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all 0.2s ease;
-  font-size: 1rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
 }
 
 .btn-primary {
   background-color: var(--primary-color);
   color: white;
-  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+  box-shadow: var(--btn-primary-shadow);
 }
 
 .btn-primary:hover {
@@ -118,17 +136,18 @@ a:hover {
 
 .btn-secondary {
   background-color: var(--secondary-color);
-  color: white;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
+  color: var(--bg-color);
+  box-shadow: var(--btn-secondary-shadow);
 }
 
 .btn-secondary:hover {
   background-color: var(--secondary-hover);
+  transform: translateY(-1px);
 }
 
 .btn-outline {
   background: transparent;
-  border: 2px solid var(--primary-color);
+  border: 1px solid var(--primary-color);
   color: var(--primary-color);
 }
 
@@ -138,8 +157,9 @@ a:hover {
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 /* Form Utilities */
@@ -152,6 +172,7 @@ a:hover {
   margin-bottom: 0.5rem;
   font-weight: 500;
   color: var(--text-color);
+  font-size: 0.9rem;
 }
 
 .form-control {
@@ -168,7 +189,7 @@ a:hover {
 .form-control:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  box-shadow: var(--input-focus-shadow);
 }
 
 /* Layout Utilities */
@@ -199,12 +220,41 @@ a:hover {
   height: 100vh;
   z-index: -1;
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 50%);
+    radial-gradient(circle at 15% 50%, rgba(194, 24, 91, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(18, 18, 18, 0.04) 0%, transparent 50%);
 }
 
 [data-theme='dark'] .bg-pattern {
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(96, 165, 250, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 85% 30%, rgba(52, 211, 153, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 15% 50%, rgba(239, 68, 68, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.01) 0%, transparent 50%);
+}
+
+/* Loader Animation Styles */
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 200px;
+}
+
+.loader {
+  width: 42px;
+  height: 42px;
+  border: 3px solid var(--input-border);
+  border-bottom-color: var(--primary-color);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 0.8s cubic-bezier(0.6, 0.2, 0.2, 0.8) infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }

@@ -12,10 +12,13 @@ import HostEvent from './pages/HostEvent';
 import EventDetail from './pages/EventDetail';
 import ManageEvent from './pages/ManageEvent';
 import UpdatePassword from './pages/UpdatePassword';
+import ClubDetail from './pages/ClubDetail';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './contexts/AuthContext';
 
 const App = () => {
   const { theme, toggleTheme } = useTheme();
+  const { user } = useAuth();
 
   return (
     <Router>
@@ -37,10 +40,10 @@ const App = () => {
 
         <main style={{ flex: 1 }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+            <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+            <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
+            <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/dashboard" element={
               <ProtectedRoute>
@@ -57,6 +60,11 @@ const App = () => {
                 <HostEvent />
               </ProtectedRoute>
             } />
+            <Route path="/edit-event/:eventId" element={
+              <ProtectedRoute allowedRoles={['student', 'faculty']}>
+                <HostEvent />
+              </ProtectedRoute>
+            } />
             <Route path="/event/:eventId" element={
               <ProtectedRoute allowedRoles={['student', 'faculty']}>
                 <EventDetail />
@@ -65,6 +73,11 @@ const App = () => {
             <Route path="/manage-event/:eventId" element={
               <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
                 <ManageEvent />
+              </ProtectedRoute>
+            } />
+            <Route path="/club/:chapterId" element={
+              <ProtectedRoute allowedRoles={['student', 'faculty']}>
+                <ClubDetail />
               </ProtectedRoute>
             } />
           </Routes>

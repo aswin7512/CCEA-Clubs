@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { isEventOver } from '../../lib/eventUtils';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [activeChapters, setActiveChapters] = useState([]);
   const [myMemberships, setMyMemberships] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [pastEvents, setPastEvents] = useState([]);
   const [hostedEvents, setHostedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,14 +36,26 @@ const StudentDashboard = () => {
         
       if (membershipsError) throw membershipsError;
 
-      // Fetch public upcoming events
-      const { data: events, error: eventsError } = await supabase
+      // Fetch events from clubs they are enrolled in (status === 'approved') or open to anyone
+      const enrolledChapterIds = (memberships || [])
+        .filter(m => m.status === 'approved')
+        .map(m => m.chapter_id);
+
+      let query = supabase
         .from('events')
         .select('*, chapter:club_chapters(name)')
-        .neq('admission_type', 'invite_only')
-        .order('event_date', { ascending: true });
+        .neq('admission_type', 'invite_only');
+
+      if (enrolledChapterIds.length > 0) {
+        query = query.or(`restrict_to_members.eq.false,chapter_id.in.(${enrolledChapterIds.map(id => `"${id}"`).join(',')})`);
+      } else {
+        query = query.eq('restrict_to_members', false);
+      }
+
+      const { data: eventsData, error: eventsError } = await query.order('event_date', { ascending: true });
 
       if (eventsError) throw eventsError;
+      const events = eventsData || [];
 
       // Fetch hosted events (if user is lead/core_team)
       const leaderChapterIds = (memberships || [])
@@ -58,9 +72,28 @@ const StudentDashboard = () => {
         if (!hEventsError) myHostedEvents = hEvents || [];
       }
 
-      setActiveChapters(chapters || []);
+      // Fetch user's event registrations
+      const { data: userRegistrations, error: registrationsError } = await supabase
+        .from('event_registrations')
+        .select('event_id')
+        .eq('user_id', user.id);
+        
+      if (registrationsError) throw registrationsError;
+      const registeredEventIds = (userRegistrations || []).map(r => r.event_id);
+
+      const upcoming = (events || []).filter(e => !isEventOver(e));
+      const past = (events || []).filter(e => isEventOver(e) && registeredEventIds.includes(e.id)).reverse();
+
+      const approvedChapterIds = (memberships || [])
+        .filter(m => m.status === 'approved')
+        .map(m => m.chapter_id);
+
+      const filteredChapters = (chapters || []).filter(c => !approvedChapterIds.includes(c.id));
+
+      setActiveChapters(filteredChapters);
       setMyMemberships(memberships || []);
-      setUpcomingEvents(events || []);
+      setUpcomingEvents(upcoming);
+      setPastEvents(past);
       setHostedEvents(myHostedEvents);
     } catch (err) {
       console.error(err);
@@ -88,7 +121,13 @@ const StudentDashboard = () => {
     }
   };
 
-  if (loading) return <div>Loading dashboard...</div>;
+  if (loading) {
+    return (
+      <div className="loader-container">
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -123,14 +162,14 @@ const StudentDashboard = () => {
                   Status: {mem.status}
                 </span>
 
-                {['core_team', 'lead', 'faculty_coordinator'].includes(mem.role) && mem.status === 'approved' && (
+                {mem.status === 'approved' && (
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button 
                       className="btn btn-outline" 
                       style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}
-                      onClick={() => window.location.href = `/host-event?chapterId=${mem.chapter_id}`}
+                      onClick={() => window.location.href = `/club/${mem.chapter_id}`}
                     >
-                      Host Event
+                      {['core_team', 'lead', 'faculty_coordinator'].includes(mem.role) ? 'Manage Club' : 'Club Details'}
                     </button>
                   </div>
                 )}
@@ -203,6 +242,30 @@ const StudentDashboard = () => {
                 onClick={() => window.location.href = `/event/${event.id}`}
               >
                 View Details & Register
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h3 style={{ marginBottom: '1.5rem', marginTop: '3rem' }}>Past Events</h3>
+      {pastEvents.length === 0 ? (
+        <p style={{ color: 'var(--text-secondary)' }}>No past events found.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          {pastEvents.map(event => (
+            <div key={event.id} style={{ padding: '1.5rem', border: '1px solid var(--input-border)', borderRadius: '0.5rem', backgroundColor: 'var(--input-bg)', opacity: 0.85 }}>
+              <h4 style={{ margin: '0 0 0.25rem 0' }}>{event.name}</h4>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: '0.5rem' }}>{event.chapter?.name}</p>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Date: {new Date(event.event_date).toLocaleDateString()} (Ended)
+              </p>
+              <button 
+                className="btn btn-outline" 
+                style={{ width: '100%', fontSize: '0.875rem', borderColor: 'var(--text-secondary)', color: 'var(--text-secondary)' }}
+                onClick={() => window.location.href = `/event/${event.id}`}
+              >
+                View Details
               </button>
             </div>
           ))}

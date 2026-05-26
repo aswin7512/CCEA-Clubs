@@ -65,7 +65,13 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  if (loading) return <div>Loading chapters...</div>;
+  if (loading) {
+    return (
+      <div className="loader-container">
+        <div className="loader"></div>
+      </div>
+    );
+  }
   if (error) return <div style={{ color: 'var(--danger-color)' }}>Error: {error}</div>;
 
   return (

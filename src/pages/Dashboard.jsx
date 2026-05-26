@@ -16,7 +16,11 @@ const Dashboard = () => {
   };
 
   if (!profile) {
-    return <div className="container flex-center" style={{ minHeight: '80vh' }}>Loading...</div>;
+    return (
+      <div className="loader-container">
+        <div className="loader"></div>
+      </div>
+    );
   }
 
   return (

@@ -3,7 +3,6 @@ CREATE TYPE user_role AS ENUM ('student', 'faculty', 'super_admin');
 CREATE TYPE chapter_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE member_role AS ENUM ('member', 'volunteer', 'core_team', 'lead', 'faculty_coordinator');
 CREATE TYPE event_admission AS ENUM ('auto_accept', 'manual_accept', 'invite_only');
-CREATE TYPE event_participation AS ENUM ('individual', 'group', 'both');
 CREATE TYPE custom_field_type AS ENUM ('text', 'paragraph', 'option', 'checklist');
 
 -- 2. Extend the auth.users table by creating a public profile table
@@ -15,7 +14,7 @@ CREATE TABLE public.profiles (
   department TEXT NOT NULL,
   division TEXT,
   prp_code TEXT,
-  phone_number TEXT NOT NULL,
+  phone_number TEXT UNIQUE NOT NULL,
   roll_number TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -53,12 +52,13 @@ CREATE TABLE public.events (
   description TEXT,
   event_date TIMESTAMPTZ,
   admission_type event_admission DEFAULT 'auto_accept',
-  participation_type event_participation DEFAULT 'individual',
   created_by UUID REFERENCES public.profiles(id),
   is_during_class_hours BOOLEAN DEFAULT false,
   class_hours JSONB, -- stores array like [1, 2, 3] if during class hours
   start_time TIME,
   end_time TIME,
+  restrict_to_members BOOLEAN NOT NULL DEFAULT true,
+  co_hosts UUID[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -114,13 +114,13 @@ BEGIN
     INSERT INTO auth.users (
         id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token
     ) VALUES (
-        new_user_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'aswinnrd05@gmail.com', crypt('Aswin@1324', gen_salt('bf')), NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{"name":"Tinkerhub"}', NOW(), NOW(), '', '', '', ''
+        new_user_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'makerscemp@gmail.com', crypt('Aswin@1324', gen_salt('bf')), NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{"name":"Maker CCEA"}', NOW(), NOW(), '', '', '', ''
     );
 
     -- Insert into our public.profiles table
     INSERT INTO public.profiles (
         id, email, role, name, department, phone_number
     ) VALUES (
-        new_user_id, 'aswinnrd05@gmail.com', 'super_admin', 'Tinkerhub', 'Admin', '0000000000'
+        new_user_id, 'makerscemp@gmail.com', 'super_admin', 'Maker CCEA', 'Admin', '0000000000'
     );
 END $$;

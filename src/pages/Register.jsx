@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const Register = () => {
   const [role, setRole] = useState('student');
@@ -35,6 +36,18 @@ const Register = () => {
         profileData.division = division;
         profileData.prp_code = prpCode;
         profileData.roll_number = rollNumber;
+      }
+
+      // Check if phone number is already registered in public.profiles
+      const { data: existingPhone, error: phoneCheckError } = await supabase
+        .from('profiles')
+        .select('phone_number')
+        .eq('phone_number', phoneNumber)
+        .maybeSingle();
+
+      if (phoneCheckError) throw phoneCheckError;
+      if (existingPhone) {
+        throw new Error('This phone number is already registered.');
       }
 
       await signUp(email, password, profileData);

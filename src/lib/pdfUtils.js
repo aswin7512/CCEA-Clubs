@@ -6,10 +6,14 @@ export const generateAttendancePDF = (event, registrations) => {
   
   doc.setFontSize(18);
   doc.text(`Attendance Report: ${event.name}`, 14, 22);
+  
+  const chapterName = event.chapter?.name || 'N/A';
+  const eventDateStr = event.event_date ? new Date(event.event_date).toLocaleDateString() : 'N/A';
+  
   doc.setFontSize(12);
-  doc.text(`Chapter: ${event.chapter.name} | Date: ${new Date(event.event_date).toLocaleDateString()}`, 14, 30);
+  doc.text(`Chapter: ${chapterName} | Date: ${eventDateStr}`, 14, 30);
 
-  const approvedRegs = registrations.filter(r => r.status === 'approved');
+  const approvedRegs = (registrations || []).filter(r => r.status === 'approved');
   
   // Group by department
   const byDept = {};

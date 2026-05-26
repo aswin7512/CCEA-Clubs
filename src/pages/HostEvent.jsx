@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,10 +7,14 @@ const HostEvent = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { eventId } = useParams();
+  const isEditMode = !!eventId;
   const searchParams = new URLSearchParams(location.search);
   const initialChapterId = searchParams.get('chapterId') || '';
 
   const [chapters, setChapters] = useState([]);
+  const [chapterMembers, setChapterMembers] = useState([]);
+  const [coHosts, setCoHosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -20,24 +24,118 @@ const HostEvent = () => {
   const [description, setDescription] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [admissionType, setAdmissionType] = useState('auto_accept');
-  const [participationType, setParticipationType] = useState('individual');
   
   // Timing State
   const [isDuringClassHours, setIsDuringClassHours] = useState(false);
   const [classHours, setClassHours] = useState([]);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [restrictToMembers, setRestrictToMembers] = useState(false);
 
   // Custom Fields State
   const [customFields, setCustomFields] = useState([]);
 
   useEffect(() => {
     fetchEligibleChapters();
-  }, [user]);
+    if (isEditMode) {
+      fetchEventDetails();
+    }
+  }, [user, eventId]);
+
+  useEffect(() => {
+    if (chapterId) {
+      fetchChapterMembers(chapterId);
+    } else {
+      setChapterMembers([]);
+    }
+  }, [chapterId]);
+
+  const fetchChapterMembers = async (cId) => {
+    try {
+      const { data, error } = await supabase
+        .from('club_members')
+        .select('*, profiles:user_id(id, name, email)')
+        .eq('chapter_id', cId)
+        .eq('status', 'approved');
+
+      if (error) throw error;
+      setChapterMembers(data || []);
+    } catch (err) {
+      console.error('Error fetching chapter members:', err);
+    }
+  };
+
+  const fetchEventDetails = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+         
+      if (eventError) throw eventError;
+
+      // Check authorization
+      const { data: memberships, error: memberError } = await supabase
+        .from('club_members')
+        .select('role, status')
+        .eq('chapter_id', event.chapter_id)
+        .eq('user_id', user.id)
+        .single();
+         
+      const isApprovedLeader = !memberError && memberships?.status === 'approved' && ['core_team', 'lead', 'faculty_coordinator'].includes(memberships?.role);
+      const isCoHost = (event.co_hosts || []).includes(user.id);
+      const isCreator = event.created_by === user.id;
+
+      if (!isCreator && !isCoHost && !isApprovedLeader) {
+        throw new Error('You do not have permission to edit this event.');
+      }
+      
+      setName(event.name || '');
+      setDescription(event.description || '');
+      if (event.event_date) {
+        const dateObj = new Date(event.event_date);
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        setEventDate(`${yyyy}-${mm}-${dd}`);
+      }
+      setAdmissionType(event.admission_type || 'auto_accept');
+      setIsDuringClassHours(event.is_during_class_hours || false);
+      setClassHours(event.class_hours || []);
+      setStartTime(event.start_time || '');
+      setEndTime(event.end_time || '');
+      setRestrictToMembers(event.restrict_to_members || false);
+      setCoHosts(event.co_hosts || []);
+      setChapterId(event.chapter_id || '');
+
+      const { data: fields, error: fieldsError } = await supabase
+        .from('event_custom_fields')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('order_index', { ascending: true });
+         
+      if (fieldsError) throw fieldsError;
+      setCustomFields((fields || []).map(f => ({
+        id: f.id,
+        field_type: f.field_type,
+        field_label: f.field_label,
+        is_required: f.is_required,
+        options: f.options || ['']
+      })));
+
+    } catch (err) {
+      setError(err.message || 'Failed to fetch event details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchEligibleChapters = async () => {
     try {
-      // Core team, lead, or faculty_coordinator can host events
       const { data, error } = await supabase
         .from('club_members')
         .select('chapter_id, chapter:club_chapters(id, name, academic_year)')
@@ -47,13 +145,13 @@ const HostEvent = () => {
 
       if (error) throw error;
       setChapters(data || []);
-      if (data && data.length > 0 && !initialChapterId) {
+      if (data && data.length > 0 && !initialChapterId && !isEditMode) {
         setChapterId(data[0].chapter_id);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isEditMode) setLoading(false);
     }
   };
 
@@ -81,6 +179,14 @@ const HostEvent = () => {
     setCustomFields(customFields.filter(f => f.id !== id));
   };
 
+  const handleCoHostToggle = (memberUserId) => {
+    setCoHosts(prev => 
+      prev.includes(memberUserId) 
+        ? prev.filter(id => id !== memberUserId) 
+        : [...prev, memberUserId]
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -90,55 +196,113 @@ const HostEvent = () => {
       if (!chapterId) throw new Error('Please select a chapter to host this event under.');
       if (isDuringClassHours && classHours.length === 0) throw new Error('Please select at least one class hour.');
 
-      // 1. Create Event
-      const { data: eventData, error: eventError } = await supabase
-        .from('events')
-        .insert([{
-          chapter_id: chapterId,
-          name,
-          description,
-          event_date: new Date(eventDate).toISOString(),
-          admission_type: admissionType,
-          participation_type: participationType,
-          is_during_class_hours: isDuringClassHours,
-          class_hours: isDuringClassHours ? classHours : null,
-          start_time: !isDuringClassHours ? startTime : null,
-          end_time: !isDuringClassHours ? endTime : null,
-          created_by: user.id
-        }])
-        .select()
-        .single();
+      if (isEditMode) {
+        // 1. Update Event
+        const { error: eventError } = await supabase
+          .from('events')
+          .update({
+            chapter_id: chapterId,
+            name,
+            description,
+            event_date: new Date(eventDate).toISOString(),
+            admission_type: admissionType,
+            is_during_class_hours: isDuringClassHours,
+            class_hours: isDuringClassHours ? classHours : null,
+            start_time: !isDuringClassHours ? startTime : null,
+            end_time: !isDuringClassHours ? endTime : null,
+            restrict_to_members: restrictToMembers,
+            co_hosts: coHosts
+          })
+          .eq('id', eventId);
 
-      if (eventError) throw eventError;
+        if (eventError) throw eventError;
 
-      // 2. Add Custom Fields if any
-      if (customFields.length > 0) {
-        const fieldsToInsert = customFields.map((field, index) => ({
-          event_id: eventData.id,
-          field_type: field.field_type,
-          field_label: field.field_label,
-          is_required: field.is_required,
-          options: ['option', 'checklist'].includes(field.field_type) ? field.options : null,
-          order_index: index
-        }));
-
-        const { error: fieldsError } = await supabase
+        // 2. Clear old fields
+        const { error: deleteError } = await supabase
           .from('event_custom_fields')
-          .insert(fieldsToInsert);
+          .delete()
+          .eq('event_id', eventId);
 
-        if (fieldsError) throw fieldsError;
+        if (deleteError) throw deleteError;
+
+        // 3. Insert new custom fields if any
+        if (customFields.length > 0) {
+          const fieldsToInsert = customFields.map((field, index) => ({
+            event_id: eventId,
+            field_type: field.field_type,
+            field_label: field.field_label,
+            is_required: field.is_required,
+            options: ['option', 'checklist'].includes(field.field_type) ? field.options : null,
+            order_index: index
+          }));
+
+          const { error: fieldsError } = await supabase
+            .from('event_custom_fields')
+            .insert(fieldsToInsert);
+
+          if (fieldsError) throw fieldsError;
+        }
+
+        alert('Event updated successfully!');
+        navigate(`/event/${eventId}`);
+      } else {
+        // 1. Create Event
+        const { data: eventData, error: eventError } = await supabase
+          .from('events')
+          .insert([{
+            chapter_id: chapterId,
+            name,
+            description,
+            event_date: new Date(eventDate).toISOString(),
+            admission_type: admissionType,
+            is_during_class_hours: isDuringClassHours,
+            class_hours: isDuringClassHours ? classHours : null,
+            start_time: !isDuringClassHours ? startTime : null,
+            end_time: !isDuringClassHours ? endTime : null,
+            restrict_to_members: restrictToMembers,
+            co_hosts: coHosts,
+            created_by: user.id
+          }])
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+
+        // 2. Add Custom Fields if any
+        if (customFields.length > 0) {
+          const fieldsToInsert = customFields.map((field, index) => ({
+            event_id: eventData.id,
+            field_type: field.field_type,
+            field_label: field.field_label,
+            is_required: field.is_required,
+            options: ['option', 'checklist'].includes(field.field_type) ? field.options : null,
+            order_index: index
+          }));
+
+          const { error: fieldsError } = await supabase
+            .from('event_custom_fields')
+            .insert(fieldsToInsert);
+
+          if (fieldsError) throw fieldsError;
+        }
+
+        alert('Event hosted successfully!');
+        navigate('/dashboard');
       }
-
-      alert('Event hosted successfully!');
-      navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Failed to create event');
+      setError(err.message || 'Failed to save event');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && chapters.length === 0) return <div>Loading...</div>;
+  if (loading && chapters.length === 0) {
+    return (
+      <div className="loader-container">
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   if (chapters.length === 0) {
     return (
@@ -154,8 +318,12 @@ const HostEvent = () => {
 
   return (
     <div className="container" style={{ padding: '2rem 0', maxWidth: '800px' }}>
+      <button className="btn btn-outline" style={{ marginBottom: '1.5rem', padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => navigate(-1)}>
+        &larr; Back
+      </button>
+
       <div className="glass-panel">
-        <h2 style={{ marginBottom: '2rem' }}>Host a New Event</h2>
+        <h2 style={{ marginBottom: '2rem' }}>{isEditMode ? 'Edit Event Details' : 'Host a New Event'}</h2>
 
         {error && (
           <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
@@ -169,7 +337,7 @@ const HostEvent = () => {
           
           <div className="form-group">
             <label className="form-label">Host Under Chapter</label>
-            <select className="form-control" value={chapterId} onChange={e => setChapterId(e.target.value)} required>
+            <select className="form-control" value={chapterId} onChange={e => setChapterId(e.target.value)} required disabled={isEditMode}>
               {chapters.map(c => (
                 <option key={c.chapter_id} value={c.chapter_id}>{c.chapter.name} ({c.chapter.academic_year})</option>
               ))}
@@ -186,24 +354,98 @@ const HostEvent = () => {
             <textarea className="form-control" value={description} onChange={e => setDescription(e.target.value)} rows="3" required />
           </div>
 
-          {/* Admission & Participation */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="form-group">
-              <label className="form-label">Admission Type</label>
-              <select className="form-control" value={admissionType} onChange={e => setAdmissionType(e.target.value)}>
-                <option value="auto_accept">Auto Accept All</option>
-                <option value="manual_accept">Manual Review</option>
-                <option value="invite_only">Invite Only (Hidden)</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Participation Type</label>
-              <select className="form-control" value={participationType} onChange={e => setParticipationType(e.target.value)}>
-                <option value="individual">Individual</option>
-                <option value="group">Group</option>
-                <option value="both">Both</option>
-              </select>
-            </div>
+          {/* Co-hosts Selection */}
+          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <label className="form-label">Event Co-hosts</label>
+            {chapterMembers.filter(m => m.user_id !== user?.id).length === 0 ? (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>No other approved members available in this chapter.</p>
+            ) : (
+              <div>
+                <select 
+                  className="form-control" 
+                  value="" 
+                  onChange={e => {
+                    if (e.target.value) {
+                      handleCoHostToggle(e.target.value);
+                    }
+                  }}
+                  style={{ marginBottom: '0.75rem' }}
+                >
+                  <option value="">Select a member to add as co-host...</option>
+                  {chapterMembers
+                    .filter(m => m.profiles && m.user_id !== user?.id && !coHosts.includes(m.user_id))
+                    .map(m => (
+                      <option key={m.id} value={m.user_id}>
+                        {m.profiles.name} ({m.profiles.email})
+                      </option>
+                    ))
+                  }
+                </select>
+
+                {/* Render Selected Co-host Badges */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {coHosts.map(userId => {
+                    const member = chapterMembers.find(m => m.user_id === userId);
+                    if (!member || !member.profiles) return null;
+                    return (
+                      <div 
+                        key={userId} 
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '0.5rem', 
+                          padding: '0.25rem 0.75rem', 
+                          borderRadius: '1rem', 
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                          color: 'var(--danger-color)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          fontSize: '0.875rem' 
+                        }}
+                      >
+                        <span>{member.profiles.name}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => handleCoHostToggle(userId)}
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            color: 'var(--danger-color)', 
+                            cursor: 'pointer', 
+                            fontWeight: 'bold',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.1rem',
+                            lineHeight: 1
+                          }}
+                          title="Remove co-host"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Admission Type */}
+          <div className="form-group">
+            <label className="form-label">Admission Type</label>
+            <select className="form-control" value={admissionType} onChange={e => setAdmissionType(e.target.value)}>
+              <option value="auto_accept">Auto Accept All</option>
+              <option value="manual_accept">Manual Review</option>
+              <option value="invite_only">Invite Only (Hidden)</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ margin: '1rem 0' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={restrictToMembers} onChange={e => setRestrictToMembers(e.target.checked)} />
+              Restrict participation to club members only
+            </label>
           </div>
 
           {/* Timing */}
@@ -340,7 +582,7 @@ const HostEvent = () => {
           )}
 
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '2rem' }} disabled={loading}>
-            {loading ? 'Publishing Event...' : 'Host Event'}
+            {loading ? (isEditMode ? 'Saving Changes...' : 'Publishing Event...') : (isEditMode ? 'Save Changes' : 'Host Event')}
           </button>
         </form>
       </div>
