@@ -55,7 +55,7 @@ const HostEvent = () => {
     try {
       const { data, error } = await supabase
         .from('club_members')
-        .select('*, profiles:user_id(id, name, email)')
+        .select('*, profiles:user_id(id, name, email, role)')
         .eq('chapter_id', cId)
         .eq('status', 'approved');
 
@@ -372,8 +372,8 @@ const HostEvent = () => {
           {/* Co-hosts Selection */}
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
             <label className="form-label">Event Co-hosts</label>
-            {chapterMembers.filter(m => m.user_id !== user?.id).length === 0 ? (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>No other approved members available in this chapter.</p>
+            {chapterMembers.filter(m => m.profiles && m.profiles.role !== 'faculty' && m.role !== 'faculty_coordinator' && m.user_id !== user?.id).length === 0 ? (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>No other approved student members available in this chapter.</p>
             ) : (
               <div>
                 <select 
@@ -388,7 +388,7 @@ const HostEvent = () => {
                 >
                   <option value="">Select a member to add as co-host...</option>
                   {chapterMembers
-                    .filter(m => m.profiles && m.user_id !== user?.id && !coHosts.includes(m.user_id))
+                    .filter(m => m.profiles && m.profiles.role !== 'faculty' && m.role !== 'faculty_coordinator' && m.user_id !== user?.id && !coHosts.includes(m.user_id))
                     .map(m => (
                       <option key={m.id} value={m.user_id}>
                         {m.profiles.name} ({m.profiles.email})
