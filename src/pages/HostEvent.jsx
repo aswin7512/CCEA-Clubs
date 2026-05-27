@@ -456,7 +456,6 @@ const HostEvent = () => {
             <select className="form-control" value={admissionType} onChange={e => setAdmissionType(e.target.value)}>
               <option value="auto_accept">Auto Accept All</option>
               <option value="manual_accept">Manual Review</option>
-              <option value="invite_only">Invite Only (Hidden)</option>
             </select>
           </div>
 
