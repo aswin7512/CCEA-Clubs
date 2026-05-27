@@ -389,6 +389,7 @@ const HostEvent = () => {
                   <option value="">Select a member to add as co-host...</option>
                   {chapterMembers
                     .filter(m => m.profiles && m.profiles.role !== 'faculty' && m.role !== 'faculty_coordinator' && m.user_id !== user?.id && !coHosts.includes(m.user_id))
+                    .sort((a, b) => (a.profiles?.name || '').localeCompare(b.profiles?.name || ''))
                     .map(m => (
                       <option key={m.id} value={m.user_id}>
                         {m.profiles.name} ({m.profiles.email})
@@ -396,51 +397,54 @@ const HostEvent = () => {
                     ))
                   }
                 </select>
-
+ 
                 {/* Render Selected Co-host Badges */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {coHosts.map(userId => {
-                    const member = chapterMembers.find(m => m.user_id === userId);
-                    if (!member || !member.profiles) return null;
-                    return (
-                      <div 
-                        key={userId} 
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '0.5rem', 
-                          padding: '0.25rem 0.75rem', 
-                          borderRadius: '1rem', 
-                          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                          color: 'var(--danger-color)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          fontSize: '0.875rem' 
-                        }}
-                      >
-                        <span>{member.profiles.name}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => handleCoHostToggle(userId)}
+                  {coHosts
+                    .map(userId => chapterMembers.find(m => m.user_id === userId))
+                    .filter(member => member && member.profiles)
+                    .sort((a, b) => (a.profiles?.name || '').localeCompare(b.profiles?.name || ''))
+                    .map(member => {
+                      const userId = member.user_id;
+                      return (
+                        <div 
+                          key={userId} 
                           style={{ 
-                            background: 'none', 
-                            border: 'none', 
-                            color: 'var(--danger-color)', 
-                            cursor: 'pointer', 
-                            fontWeight: 'bold',
-                            padding: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '1.1rem',
-                            lineHeight: 1
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '0.5rem', 
+                            padding: '0.25rem 0.75rem', 
+                            borderRadius: '1rem', 
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                            color: 'var(--danger-color)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            fontSize: '0.875rem' 
                           }}
-                          title="Remove co-host"
                         >
-                          &times;
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <span>{member.profiles.name}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => handleCoHostToggle(userId)}
+                            style={{ 
+                              background: 'none', 
+                              border: 'none', 
+                              color: 'var(--danger-color)', 
+                              cursor: 'pointer', 
+                              fontWeight: 'bold',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '1.1rem',
+                              lineHeight: 1
+                            }}
+                            title="Remove co-host"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}

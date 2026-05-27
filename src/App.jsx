@@ -13,6 +13,7 @@ import EventDetail from './pages/EventDetail';
 import ManageEvent from './pages/ManageEvent';
 import UpdatePassword from './pages/UpdatePassword';
 import ClubDetail from './pages/ClubDetail';
+import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 
@@ -78,6 +79,11 @@ const App = () => {
             <Route path="/club/:chapterId" element={
               <ProtectedRoute allowedRoles={['student', 'faculty']}>
                 <ClubDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
+                <Profile />
               </ProtectedRoute>
             } />
           </Routes>

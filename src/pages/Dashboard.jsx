@@ -30,9 +30,14 @@ const Dashboard = () => {
           <h2>Welcome, {profile.name}</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Role: {profile.role}</p>
         </div>
-        <button onClick={handleLogout} className="btn btn-outline" style={{ display: 'flex', gap: '0.5rem' }}>
-          <LogOut size={18} /> Logout
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button onClick={() => navigate('/profile')} className="btn btn-primary animate-hover" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            My Profile
+          </button>
+          <button onClick={handleLogout} className="btn btn-outline" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
       </div>
 
       <div className="glass-panel">
