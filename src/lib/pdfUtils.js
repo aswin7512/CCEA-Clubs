@@ -96,7 +96,18 @@ export const generateAttendancePDF = (event, registrations) => {
       head: [headRow],
       body: body,
       headStyles: { fillColor: [59, 130, 246] },
-      margin: { bottom: 20 }
+      margin: { bottom: 20 },
+      didParseCell: (data) => {
+        if (data.section === 'body') {
+          if (data.cell.raw === 'Present') {
+            data.cell.styles.textColor = [16, 185, 129]; // Green (#10b981)
+            data.cell.styles.fontStyle = 'bold';
+          } else if (data.cell.raw === 'Absent') {
+            data.cell.styles.textColor = [239, 68, 68]; // Red (#ef4444)
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
     });
     
     currentY = doc.lastAutoTable.finalY + 15;
