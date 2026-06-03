@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import AnimatedPage from '../components/AnimatedPage';
 
 const Register = () => {
   const [role, setRole] = useState('student');
@@ -65,7 +67,7 @@ const Register = () => {
       }
 
       await signUp(email, password, profileData);
-      navigate('/dashboard'); // or redirect to a "verify email" page if email confirmation is required
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to create an account');
     } finally {
@@ -78,101 +80,137 @@ const Register = () => {
     : ['Computer Science', 'Electronics and Communication', 'Electrical and Electronics', 'Computer and Business Systems', 'Electrical and Computer', 'Mechanical', 'Civil', 'Applied Science and Humanities'];
 
   return (
-    <div className="container flex-center" style={{ minHeight: 'calc(100vh - 80px)', padding: '2rem 0' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '500px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Create an Account</h2>
+    <AnimatedPage>
+      <div className="auth-page" style={{ padding: '2rem 1rem' }}>
+        <motion.div
+          className="glass-panel auth-card"
+          style={{ maxWidth: '500px' }}
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+        >
+          <h2>Create an Account</h2>
 
-        {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-          <button
-            type="button"
-            className={`btn ${role === 'student' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ flex: 1 }}
-            onClick={() => setRole('student')}
-          >
-            Student
-          </button>
-          <button
-            type="button"
-            className={`btn ${role === 'faculty' ? 'btn-primary' : 'btn-outline'}`}
-            style={{ flex: 1 }}
-            onClick={() => setRole('faculty')}
-          >
-            Faculty
-          </button>
-        </div>
-
-        <form onSubmit={handleRegister}>
-          <div className="form-group">
-            <label className="form-label">Full Name</label>
-            <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Email</label>
-            <input type="email" className="form-control" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input type="password" className="form-control" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Phone Number</label>
-            <input type="tel" className="form-control" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Department</label>
-            <select className="form-control" value={department} onChange={(e) => setDepartment(e.target.value)} required>
-              <option value="">Select Department</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
-
-          {role === 'student' && (
-            <>
-              <div className="form-group">
-                <label className="form-label">Division</label>
-                <select className="form-control" value={division} onChange={(e) => setDivision(e.target.value)} required>
-                  <option value="">Select Division (Choose A if No Division)</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">PRP Code</label>
-                <input type="text" className="form-control" value={prpCode} onChange={(e) => setPrpCode(e.target.value)} required />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Roll Number</label>
-                <input type="text" className="form-control" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} required />
-              </div>
-            </>
+          {error && (
+            <motion.div
+              className="alert alert-danger"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              {error}
+            </motion.div>
           )}
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} disabled={loading}>
-            {loading ? 'Creating Account...' : 'Register'}
-          </button>
-        </form>
+          {/* Role Selector */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', background: 'var(--bg-secondary)', padding: '4px', borderRadius: '0.75rem' }}>
+            {['student', 'faculty'].map((r) => (
+              <motion.button
+                key={r}
+                type="button"
+                onClick={() => setRole(r)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem',
+                  border: 'none',
+                  borderRadius: '0.6rem',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-family)',
+                  background: role === r ? 'var(--primary-color)' : 'transparent',
+                  color: role === r ? 'white' : 'var(--text-secondary)',
+                  transition: 'all 0.3s',
+                }}
+                whileTap={{ scale: 0.96 }}
+              >
+                {r.charAt(0).toUpperCase() + r.slice(1)}
+              </motion.button>
+            ))}
+          </div>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem' }}>
-          <p>
-            Already have an account? <Link to="/login">Sign In</Link>
-          </p>
-        </div>
+          <form onSubmit={handleRegister}>
+            <div className="form-group">
+              <label className="form-label">Full Name</label>
+              <input type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Enter your full name" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input type="email" className="form-control" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="Enter your email" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input type="password" className="form-control" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Create a password" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Phone Number</label>
+              <input type="tel" className="form-control" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required placeholder="Enter your phone number" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Department</label>
+              <select className="form-control" value={department} onChange={(e) => setDepartment(e.target.value)} required>
+                <option value="">Select Department</option>
+                {departments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+
+            {role === 'student' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="form-group">
+                  <label className="form-label">Division</label>
+                  <select className="form-control" value={division} onChange={(e) => setDivision(e.target.value)} required>
+                    <option value="">Select Division (Choose A if No Division)</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">PRP Code</label>
+                  <input type="text" className="form-control" value={prpCode} onChange={(e) => setPrpCode(e.target.value)} required placeholder="Enter your PRP code" />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Roll Number</label>
+                  <input type="text" className="form-control" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} required placeholder="Enter your roll number" />
+                </div>
+              </motion.div>
+            )}
+
+            <motion.button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: '1rem' }}
+              disabled={loading}
+              whileTap={{ scale: 0.97 }}
+            >
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="loader" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                  Creating Account...
+                </span>
+              ) : 'Register'}
+            </motion.button>
+          </form>
+
+          <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.875rem' }}>
+            <p>
+              Already have an account? <Link to="/login">Sign In</Link>
+            </p>
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatedPage>
   );
 };
 

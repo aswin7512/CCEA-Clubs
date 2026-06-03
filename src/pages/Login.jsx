@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import AnimatedPage from '../components/AnimatedPage';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -33,57 +35,79 @@ const Login = () => {
   };
 
   return (
-    <div className="container flex-center" style={{ minHeight: 'calc(100vh - 80px)' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Welcome Back</h2>
-        
-        {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
-            {error}
-          </div>
-        )}
+    <AnimatedPage>
+      <div className="auth-page">
+        <motion.div
+          className="glass-panel auth-card"
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+        >
+          <h2>Welcome Back</h2>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              className="form-control"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Enter your email"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              className="form-control"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Enter your password"
-            />
-          </div>
-          
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
+          {error && (
+            <motion.div
+              className="alert alert-danger"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              {error}
+            </motion.div>
+          )}
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem' }}>
-          <p style={{ marginBottom: '0.5rem' }}>
-            <Link to="/forgot-password" style={{ color: 'var(--text-secondary)' }}>Forgot Password?</Link>
-          </p>
-          <p>
-            Don't have an account? <Link to="/register">Sign Up</Link>
-          </p>
-        </div>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                className="form-control"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="Enter your email"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                className="form-control"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Enter your password"
+              />
+            </div>
+
+            <motion.button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              disabled={loading}
+              whileTap={{ scale: 0.97 }}
+            >
+              {loading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="loader" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                  Signing In...
+                </span>
+              ) : 'Sign In'}
+            </motion.button>
+          </form>
+
+          <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.875rem' }}>
+            <p style={{ marginBottom: '0.5rem' }}>
+              <Link to="/forgot-password" style={{ color: 'var(--text-secondary)' }}>Forgot Password?</Link>
+            </p>
+            <p>
+              Don't have an account? <Link to="/register">Sign Up</Link>
+            </p>
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatedPage>
   );
 };
 

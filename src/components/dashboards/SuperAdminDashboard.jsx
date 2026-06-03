@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+};
 
 const SuperAdminDashboard = () => {
   const [chapters, setChapters] = useState([]);
@@ -72,20 +83,39 @@ const SuperAdminDashboard = () => {
       </div>
     );
   }
-  if (error) return <div style={{ color: 'var(--danger-color)' }}>Error: {error}</div>;
+  if (error) return <div className="alert alert-danger">Error: {error}</div>;
 
   return (
     <div>
       <h3 style={{ marginBottom: '1.5rem' }}>Club Chapters Management</h3>
-      
+
       {chapters.length === 0 ? (
-        <p>No club chapters found.</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">🏛️</div>
+          <p>No club chapters found.</p>
+        </div>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem' }}>
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          style={{ display: 'grid', gap: '1rem' }}
+        >
           {chapters.map(chapter => (
-            <div key={chapter.id} style={{ padding: '1rem', border: '1px solid var(--input-border)', borderRadius: '0.5rem', backgroundColor: 'var(--input-bg)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
+            <motion.div
+              key={chapter.id}
+              variants={item}
+              style={{
+                padding: '1.25rem',
+                border: '1px solid var(--input-border)',
+                borderRadius: '1rem',
+                backgroundColor: 'var(--input-bg)',
+                transition: 'all 0.3s ease',
+              }}
+              whileHover={{ scale: 1.01, boxShadow: 'var(--glass-shadow-hover)' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
                   <h4 style={{ margin: '0 0 0.25rem 0' }}>{chapter.name} ({chapter.academic_year})</h4>
                   <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{chapter.description}</p>
                   <p style={{ fontSize: '0.875rem' }}>
@@ -93,41 +123,35 @@ const SuperAdminDashboard = () => {
                   </p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-                  <span style={{ 
-                    padding: '0.25rem 0.75rem', 
-                    borderRadius: '1rem', 
-                    fontSize: '0.75rem', 
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    backgroundColor: chapter.status === 'approved' ? 'rgba(16, 185, 129, 0.2)' : chapter.status === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                    color: chapter.status === 'approved' ? 'var(--secondary-color)' : chapter.status === 'rejected' ? 'var(--danger-color)' : '#f59e0b'
-                  }}>
+                  <span className={`badge ${chapter.status === 'approved' ? 'badge-success' : chapter.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                     {chapter.status}
                   </span>
-                  
+
                   {chapter.status === 'pending' && (
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}
+                      <motion.button
+                        className="btn btn-secondary"
+                        style={{ padding: '0.3rem 0.85rem', fontSize: '0.85rem' }}
                         onClick={() => handleUpdateStatus(chapter.id, 'approved', chapter.campus_lead_id)}
+                        whileTap={{ scale: 0.95 }}
                       >
                         Approve
-                      </button>
-                      <button 
-                        className="btn btn-outline" 
-                        style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem', borderColor: 'var(--danger-color)', color: 'var(--danger-color)' }}
+                      </motion.button>
+                      <motion.button
+                        className="btn btn-ghost"
+                        style={{ padding: '0.3rem 0.85rem', fontSize: '0.85rem', borderColor: 'var(--danger-color)', color: 'var(--danger-color)' }}
                         onClick={() => handleUpdateStatus(chapter.id, 'rejected', chapter.campus_lead_id)}
+                        whileTap={{ scale: 0.95 }}
                       >
                         Reject
-                      </button>
+                      </motion.button>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );

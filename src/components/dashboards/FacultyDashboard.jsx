@@ -1,7 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+};
 
 const FacultyDashboard = () => {
   const { user } = useAuth();
@@ -66,64 +77,88 @@ const FacultyDashboard = () => {
       {assignedChapters.length > 0 && (
         <div>
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--primary-color)' }}></span>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', display: 'inline-block', boxShadow: '0 0 10px var(--primary-glow)' }}></span>
             My Assigned Clubs (Manager)
           </h3>
-          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="card-grid"
+          >
             {assignedChapters.map(chapter => (
-              <div key={chapter.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <motion.div
+                key={chapter.id}
+                variants={item}
+                className="glass-panel"
+                style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                whileHover={{ y: -6, boxShadow: 'var(--glass-shadow-hover)' }}
+              >
                 <div>
                   <h4 style={{ margin: '0 0 0.5rem 0' }}>{chapter.name} ({chapter.academic_year})</h4>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                     {chapter.description || 'No description provided.'}
                   </p>
                 </div>
-                <button
+                <motion.button
                   className="btn btn-primary"
                   style={{ width: '100%', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
                   onClick={() => navigate(`/club/${chapter.id}`)}
+                  whileTap={{ scale: 0.96 }}
                 >
                   Manage Club Operations
-                </button>
-              </div>
+                </motion.button>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Campus Clubs Section */}
       <div>
         <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--secondary-color)' }}></span>
+          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'var(--secondary-color)', display: 'inline-block' }}></span>
           Campus Clubs
         </h3>
         {otherChapters.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '1.5rem', textAlign: 'center' }}>
-            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>No other active clubs found on campus.</p>
+          <div className="empty-state">
+            <div className="empty-state-icon">🏛️</div>
+            <p>No other active clubs found on campus.</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="card-grid"
+          >
             {otherChapters.map(chapter => (
-              <div key={chapter.id} className="glass-panel animate-hover" style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <motion.div
+                key={chapter.id}
+                variants={item}
+                className="glass-panel"
+                style={{ backgroundColor: 'var(--input-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                whileHover={{ y: -6, boxShadow: 'var(--glass-shadow-hover)' }}
+              >
                 <div>
                   <h4 style={{ margin: '0 0 0.5rem 0' }}>{chapter.name} ({chapter.academic_year})</h4>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                     {chapter.description || 'No description provided.'}
                   </p>
                 </div>
-                <button
+                <motion.button
                   className="btn btn-outline"
                   style={{ width: '100%', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
                   onClick={() => navigate(`/club/${chapter.id}`)}
+                  whileTap={{ scale: 0.96 }}
                 >
                   View Club Details
-                </button>
-              </div>
+                </motion.button>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
-
     </div>
   );
 };

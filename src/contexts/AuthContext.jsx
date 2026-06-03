@@ -38,7 +38,12 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    initializeAuth();
+    // Add a safety timeout so the app always renders even if Supabase is unreachable
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 5000);
+
+    initializeAuth().finally(() => clearTimeout(timeout));
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -53,6 +58,7 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -133,9 +139,9 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={value}>
       {loading ? (
-        <div className="flex-center" style={{ minHeight: '100vh', flexDirection: 'column', gap: '1rem', backgroundColor: 'var(--bg-color)' }}>
+        <div className="flex-center" style={{ minHeight: '100vh', flexDirection: 'column', gap: '1.5rem', backgroundColor: 'var(--bg-color)' }}>
           <div className="loader"></div>
-          <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-family)', fontSize: '0.9rem', fontWeight: 500 }}>Initializing CCEA Clubs...</p>
+          <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Loading...</p>
         </div>
       ) : (
         children

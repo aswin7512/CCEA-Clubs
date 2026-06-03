@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import AnimatedPage from '../components/AnimatedPage';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -40,9 +42,9 @@ const ForgotPassword = () => {
         token: otp,
         type: 'recovery'
       });
-      
+
       if (error) throw error;
-      
+
       navigate('/update-password');
     } catch (err) {
       setError(err.message || 'Invalid or expired OTP');
@@ -52,71 +54,98 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="container flex-center" style={{ minHeight: 'calc(100vh - 80px)' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '400px' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Reset Password</h2>
-        
-        {error && (
-          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
-            {error}
-          </div>
-        )}
-        
-        {message && (
-          <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--secondary-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--secondary-color)' }}>
-            {message}
-          </div>
-        )}
+    <AnimatedPage>
+      <div className="auth-page">
+        <motion.div
+          className="glass-panel auth-card"
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+        >
+          <h2>Reset Password</h2>
 
-        {!isOtpSent ? (
-          <form onSubmit={handleSendOtp}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                className="form-control"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="Enter your registered email"
-              />
-            </div>
-            
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Sending OTP...' : 'Send OTP Code'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="otp">OTP Code</label>
-              <input
-                id="otp"
-                type="text"
-                className="form-control"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                required
-                placeholder="Enter verification code"
-                maxLength={8}
-                style={{ letterSpacing: '2px', textAlign: 'center', fontSize: '1.25rem' }}
-              />
-            </div>
-            
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Verifying...' : 'Verify & Set New Password'}
-            </button>
-          </form>
-        )}
+          {error && (
+            <motion.div
+              className="alert alert-danger"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              {error}
+            </motion.div>
+          )}
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem' }}>
-          <p>
-            Remembered your password? <Link to="/login">Sign In</Link>
-          </p>
-        </div>
+          {message && (
+            <motion.div
+              className="alert alert-success"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              {message}
+            </motion.div>
+          )}
+
+          {!isOtpSent ? (
+            <form onSubmit={handleSendOtp}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="forgot-email">Email</label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  className="form-control"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Enter your registered email"
+                />
+              </div>
+
+              <motion.button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%' }}
+                disabled={loading}
+                whileTap={{ scale: 0.97 }}
+              >
+                {loading ? 'Sending OTP...' : 'Send OTP Code'}
+              </motion.button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="otp-code">OTP Code</label>
+                <input
+                  id="otp-code"
+                  type="text"
+                  className="form-control"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  required
+                  placeholder="Enter verification code"
+                  maxLength={8}
+                  style={{ letterSpacing: '4px', textAlign: 'center', fontSize: '1.25rem', fontWeight: 700 }}
+                />
+              </div>
+
+              <motion.button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%' }}
+                disabled={loading}
+                whileTap={{ scale: 0.97 }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Set New Password'}
+              </motion.button>
+            </form>
+          )}
+
+          <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.875rem' }}>
+            <p>
+              Remembered your password? <Link to="/login">Sign In</Link>
+            </p>
+          </div>
+        </motion.div>
       </div>
-    </div>
+    </AnimatedPage>
   );
 };
 

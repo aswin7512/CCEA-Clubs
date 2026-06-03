@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { generateAttendancePDF } from '../lib/pdfUtils';
 import { isEventOver } from '../lib/eventUtils';
+import AnimatedPage from '../components/AnimatedPage';
+import { ArrowLeft, Calendar, MapPin, Clock, Users, Settings, Edit } from 'lucide-react';
 
 const EventDetail = () => {
   const { eventId } = useParams();
@@ -185,219 +188,279 @@ const EventDetail = () => {
 
   if (loading) {
     return (
-      <div className="loader-container">
+      <div className="loader-container" style={{ minHeight: '60vh' }}>
         <div className="loader"></div>
       </div>
     );
   }
+
   if (error && error.includes('Access Denied')) {
     return (
-      <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <div className="glass-panel text-center" style={{ maxWidth: '500px', width: '100%' }}>
-          <h2 style={{ color: 'var(--danger-color)', marginBottom: '1rem' }}>Access Denied</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{error}</p>
-          <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>Go to Dashboard</button>
+      <AnimatedPage>
+        <div className="container flex-center" style={{ minHeight: '60vh' }}>
+          <motion.div
+            className="glass-panel text-center"
+            style={{ maxWidth: '500px', width: '100%' }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <h2 style={{ color: 'var(--danger-color)', marginBottom: '1rem' }}>🔒 Access Denied</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{error}</p>
+            <motion.button className="btn btn-primary" onClick={() => navigate('/dashboard')} whileTap={{ scale: 0.96 }}>
+              Go to Dashboard
+            </motion.button>
+          </motion.div>
         </div>
-      </div>
+      </AnimatedPage>
     );
   }
 
-  if (!event) return <div className="container flex-center" style={{ minHeight: '80vh' }}>Event not found</div>;
+  if (!event) return <div className="container flex-center" style={{ minHeight: '60vh' }}>Event not found</div>;
 
   return (
-    <div className="container" style={{ padding: '2rem 0', maxWidth: '800px' }}>
-      <button className="btn btn-outline" style={{ marginBottom: '1.5rem', padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => navigate('/dashboard')}>
-        &larr; Back to Dashboard
-      </button>
+    <AnimatedPage>
+      <div className="container" style={{ padding: '2rem 1.5rem', maxWidth: '800px', margin: '0 auto' }}>
+        <motion.button
+          className="btn btn-ghost"
+          style={{ marginBottom: '1.5rem', padding: '0.35rem 0.85rem', fontSize: '0.85rem' }}
+          onClick={() => navigate('/dashboard')}
+          whileTap={{ scale: 0.96 }}
+        >
+          <ArrowLeft size={16} /> Back to Dashboard
+        </motion.button>
 
-      {isHostOrLeader && (
-        <div className="glass-panel" style={{ marginBottom: '1.5rem', border: '1px dashed var(--primary-color)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h4 style={{ margin: 0, color: 'var(--primary-color)' }}>Host Controls</h4>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>You are authorized to manage this event.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => navigate(`/manage-event/${event.id}`)}
-              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-            >
-              Manage Attendance
-            </button>
-            <button 
-              className="btn btn-outline" 
-              onClick={() => navigate(`/edit-event/${event.id}`)}
-              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-            >
-              Edit Event
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-        <h2 style={{ margin: '0 0 0.5rem 0' }}>{event.name}</h2>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          <p style={{ color: 'var(--primary-color)', fontWeight: 'bold', margin: 0 }}>Hosted by {event.chapter?.name}</p>
-          <span style={{
-            fontSize: '0.75rem',
-            padding: '0.25rem 0.5rem',
-            borderRadius: '0.5rem',
-            backgroundColor: event.restrict_to_members ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-            color: event.restrict_to_members ? 'var(--danger-color)' : 'var(--secondary-color)',
-            border: `1px solid ${event.restrict_to_members ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
-          }}>
-            {event.restrict_to_members ? 'Members Only' : 'Open to All'}
-          </span>
-        </div>
-        
-        <div style={{ padding: '1rem', backgroundColor: 'var(--bg-color)', borderRadius: '0.5rem', marginBottom: '1.5rem' }}>
-          <p style={{ margin: '0 0 0.5rem 0' }}><strong>Date:</strong> {new Date(event.event_date).toLocaleDateString()}</p>
-          {event.is_during_class_hours ? (
-            <p style={{ margin: '0 0 0.5rem 0' }}><strong>Class Hours:</strong> {event.class_hours?.join(', ')}</p>
-          ) : (
-            <p style={{ margin: '0 0 0.5rem 0' }}><strong>Time:</strong> {event.start_time} - {event.end_time}</p>
-          )}
-          <p style={{ margin: 0 }}><strong>Venue:</strong> {event.venue || 'Not specified'}</p>
-        </div>
-
-        <h4 style={{ marginBottom: '0.5rem' }}>About this Event</h4>
-        <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{event.description}</p>
-      </div>
-
-      {profile?.role === 'faculty' && isEventOver(event) && (
-        <div className="glass-panel text-center" style={{ marginBottom: '2rem', border: '1px dashed var(--secondary-color)' }}>
-          <h3 style={{ marginBottom: '0.5rem' }}>Event Attendance</h3>
-          <p style={{ margin: '0.5rem 0 1.5rem 0', color: 'var(--text-secondary)' }}>
-            As a faculty member, you can download the consolidated attendance PDF for this past event.
-          </p>
-          <button 
-            className="btn btn-primary animate-hover" 
-            onClick={() => {
-              try {
-                generateAttendancePDF(event, allRegistrations);
-              } catch (err) {
-                alert("Failed to generate PDF: " + err.message);
-                console.error(err);
-              }
-            }}
+        {isHostOrLeader && (
+          <motion.div
+            className="glass-panel"
+            style={{ marginBottom: '1.5rem', border: '1px dashed var(--primary-color)', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
           >
-            Download Attendance Sheet
-          </button>
-        </div>
-      )}
-
-      {profile?.role !== 'faculty' && (
-        !hasApplied ? (
-          isEventOver(event) ? (
-            <div className="glass-panel text-center">
-              <h3>Event Concluded</h3>
-              <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>
-                This event has already ended. Registration is closed.
-              </p>
+            <div>
+              <h4 style={{ margin: 0, color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Settings size={18} /> Host Controls
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>You are authorized to manage this event.</p>
             </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <motion.button
+                className="btn btn-secondary"
+                onClick={() => navigate(`/manage-event/${event.id}`)}
+                style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+                whileTap={{ scale: 0.96 }}
+              >
+                <Users size={15} /> Manage Attendance
+              </motion.button>
+              <motion.button
+                className="btn btn-outline"
+                onClick={() => navigate(`/edit-event/${event.id}`)}
+                style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+                whileTap={{ scale: 0.96 }}
+              >
+                <Edit size={15} /> Edit Event
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
+        <motion.div
+          className="glass-panel"
+          style={{ marginBottom: '2rem' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0 }}>{event.name}</h2>
+            <span className={`badge ${event.restrict_to_members ? 'badge-danger' : 'badge-success'}`}>
+              {event.restrict_to_members ? 'Members Only' : 'Open to All'}
+            </span>
+          </div>
+          <p style={{ color: 'var(--primary-color)', fontWeight: 600, marginBottom: '1.5rem' }}>Hosted by {event.chapter?.name}</p>
+
+          <div style={{ padding: '1.25rem', backgroundColor: 'var(--bg-secondary)', borderRadius: '0.75rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Calendar size={16} style={{ color: 'var(--primary-color)' }} />
+              <strong>Date:</strong> {new Date(event.event_date).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+            {event.is_during_class_hours ? (
+              <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Clock size={16} style={{ color: 'var(--primary-color)' }} />
+                <strong>Class Hours:</strong> {event.class_hours?.join(', ')}
+              </p>
+            ) : (
+              <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Clock size={16} style={{ color: 'var(--primary-color)' }} />
+                <strong>Time:</strong> {event.start_time} - {event.end_time}
+              </p>
+            )}
+            <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MapPin size={16} style={{ color: 'var(--primary-color)' }} />
+              <strong>Venue:</strong> {event.venue || 'Not specified'}
+            </p>
+          </div>
+
+          <h4 style={{ marginBottom: '0.5rem' }}>About this Event</h4>
+          <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)', lineHeight: 1.7 }}>{event.description}</p>
+        </motion.div>
+
+        {profile?.role === 'faculty' && isEventOver(event) && (
+          <motion.div
+            className="glass-panel text-center"
+            style={{ marginBottom: '2rem', border: '1px dashed var(--secondary-color)' }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h3 style={{ marginBottom: '0.5rem' }}>📊 Event Attendance</h3>
+            <p style={{ margin: '0.5rem 0 1.5rem 0', color: 'var(--text-secondary)' }}>
+              As a faculty member, you can download the consolidated attendance PDF for this past event.
+            </p>
+            <motion.button
+              className="btn btn-primary"
+              onClick={() => {
+                try {
+                  generateAttendancePDF(event, allRegistrations);
+                } catch (err) {
+                  alert("Failed to generate PDF: " + err.message);
+                  console.error(err);
+                }
+              }}
+              whileTap={{ scale: 0.96 }}
+            >
+              Download Attendance Sheet
+            </motion.button>
+          </motion.div>
+        )}
+
+        {profile?.role !== 'faculty' && (
+          !hasApplied ? (
+            isEventOver(event) ? (
+              <motion.div
+                className="glass-panel text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <h3>⏰ Event Concluded</h3>
+                <p style={{ margin: '1rem 0', color: 'var(--text-secondary)' }}>
+                  This event has already ended. Registration is closed.
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                className="glass-panel"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <h3 style={{ marginBottom: '1.5rem' }}>📝 Registration Form</h3>
+
+                {error && (
+                  <div className="alert alert-danger">{error}</div>
+                )}
+
+                <form onSubmit={handleSubmitRegistration}>
+                  {customFields.map((field) => (
+                    <div key={field.id} className="form-group">
+                      <label className="form-label">
+                        {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
+                      </label>
+
+                      {field.field_type === 'text' && (
+                        <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
+                      )}
+
+                      {field.field_type === 'paragraph' && (
+                        <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
+                      )}
+
+                      {field.field_type === 'option' && (
+                        <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
+                          <option value="">Select an option</option>
+                          {(field.options || []).map((opt, i) => (
+                            <option key={i} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+
+                      {field.field_type === 'checklist' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {(field.options || []).map((opt, i) => (
+                            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                              <input
+                                type="checkbox"
+                                checked={(formData[field.id] || []).includes(opt)}
+                                onChange={() => handleFieldChange(field.id, opt, 'checklist')}
+                                style={{ accentColor: 'var(--primary-color)' }}
+                              />
+                              {opt}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  <motion.button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ width: '100%', marginTop: '1rem' }}
+                    disabled={submitting}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    {submitting ? 'Submitting...' : 'Register for Event'}
+                  </motion.button>
+                </form>
+              </motion.div>
+            )
           ) : (
-            <div className="glass-panel">
-              <h3 style={{ marginBottom: '1.5rem' }}>Registration Form</h3>
-              
-              {error && (
-                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.5rem', border: '1px solid var(--danger-color)' }}>
-                  {error}
-                </div>
+            <motion.div
+              className="glass-panel text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h3>✅ Registration Submitted</h3>
+              <p style={{ margin: '1rem 0' }}>
+                Your application status is:
+                <span
+                  className={`badge ${applicationStatus === 'approved' ? 'badge-success' : applicationStatus === 'rejected' ? 'badge-danger' : 'badge-warning'}`}
+                  style={{ marginLeft: '0.75rem' }}
+                >
+                  {applicationStatus}
+                </span>
+              </p>
+
+              {applicationStatus === 'approved' && isEventOver(event) && (
+                <motion.button
+                  className="btn btn-primary"
+                  style={{ marginTop: '1rem' }}
+                  onClick={() => {
+                    try {
+                      generateAttendancePDF(event, allRegistrations);
+                    } catch (err) {
+                      alert("Failed to generate PDF: " + err.message);
+                      console.error(err);
+                    }
+                  }}
+                  whileTap={{ scale: 0.96 }}
+                >
+                  Download Attendance Sheet
+                </motion.button>
               )}
 
-              <form onSubmit={handleSubmitRegistration}>
-                {customFields.map((field) => (
-                  <div key={field.id} className="form-group">
-                    <label className="form-label">
-                      {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
-                    </label>
-
-                    {field.field_type === 'text' && (
-                      <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
-                    )}
-
-                    {field.field_type === 'paragraph' && (
-                      <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
-                    )}
-
-                    {field.field_type === 'option' && (
-                      <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
-                        <option value="">Select an option</option>
-                        {(field.options || []).map((opt, i) => (
-                          <option key={i} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    {field.field_type === 'checklist' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {(field.options || []).map((opt, i) => (
-                          <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={(formData[field.id] || []).includes(opt)}
-                              onChange={() => handleFieldChange(field.id, opt, 'checklist')}
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }} disabled={submitting}>
-                  {submitting ? 'Submitting...' : 'Register for Event'}
-                </button>
-              </form>
-            </div>
+              {applicationStatus === 'approved' && !isEventOver(event) && (
+                <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  The attendance sheet will be available to download after the event concludes.
+                </p>
+              )}
+            </motion.div>
           )
-        ) : (
-          <div className="glass-panel text-center">
-            <h3>Registration Submitted</h3>
-            <p style={{ margin: '1rem 0' }}>
-              Your application status is: 
-              <span style={{ 
-                marginLeft: '0.5rem',
-                padding: '0.25rem 0.75rem', 
-                borderRadius: '1rem', 
-                fontSize: '0.875rem', 
-                fontWeight: 'bold',
-                textTransform: 'uppercase',
-                backgroundColor: applicationStatus === 'approved' ? 'rgba(16, 185, 129, 0.2)' : applicationStatus === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                color: applicationStatus === 'approved' ? 'var(--secondary-color)' : applicationStatus === 'rejected' ? 'var(--danger-color)' : '#f59e0b'
-              }}>
-                {applicationStatus}
-              </span>
-            </p>
-
-            {applicationStatus === 'approved' && isEventOver(event) && (
-              <button 
-                className="btn btn-primary" 
-                style={{ marginTop: '1rem' }}
-                onClick={() => {
-                  try {
-                    generateAttendancePDF(event, allRegistrations);
-                  } catch (err) {
-                    alert("Failed to generate PDF: " + err.message);
-                    console.error(err);
-                  }
-                }}
-              >
-                Download Attendance Sheet
-              </button>
-            )}
-
-            {applicationStatus === 'approved' && !isEventOver(event) && (
-              <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                The attendance sheet will be available to download after the event concludes.
-              </p>
-            )}
-          </div>
-        )
-      )}
-    </div>
+        )}
+      </div>
+    </AnimatedPage>
   );
 };
 
