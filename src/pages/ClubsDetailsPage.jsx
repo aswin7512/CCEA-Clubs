@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { BarChart, Bar, ResponsiveContainer, Tooltip } from 'recharts';
@@ -7,10 +8,10 @@ import { Edit2, Save, Printer, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const initialClubsData = [
-  { id: 1, name: 'Robotics Club', nextActivity: 'Robo Wars Prep', activitiesCount: 15, isActive: true, activityHistory: [{v: 5}, {v: 10}, {v: 15}, {v: 8}] },
-  { id: 2, name: 'Coding Club', nextActivity: 'Hackathon 2026', activitiesCount: 24, isActive: true, activityHistory: [{v: 12}, {v: 20}, {v: 18}, {v: 24}] },
-  { id: 3, name: 'Design Club', nextActivity: 'UI/UX Workshop', activitiesCount: 8, isActive: true, activityHistory: [{v: 2}, {v: 5}, {v: 4}, {v: 8}] },
-  { id: 4, name: 'Debate Club', nextActivity: 'TBD', activitiesCount: 2, isActive: false, activityHistory: [{v: 1}, {v: 2}, {v: 0}, {v: 0}] }
+  { name: 'Robotics Club', nextActivity: 'Robo Wars Prep', activitiesCount: 15, isActive: true, activityHistory: [{v: 5}, {v: 10}, {v: 15}, {v: 8}] },
+  { name: 'Coding Club', nextActivity: 'Hackathon 2026', activitiesCount: 24, isActive: true, activityHistory: [{v: 12}, {v: 20}, {v: 18}, {v: 24}] },
+  { name: 'Design Club', nextActivity: 'UI/UX Workshop', activitiesCount: 8, isActive: true, activityHistory: [{v: 2}, {v: 5}, {v: 4}, {v: 8}] },
+  { name: 'Debate Club', nextActivity: 'TBD', activitiesCount: 2, isActive: false, activityHistory: [{v: 1}, {v: 2}, {v: 0}, {v: 0}] }
 ];
 
 const MiniGraph = ({ data, isActive }) => (
@@ -26,21 +27,76 @@ const MiniGraph = ({ data, isActive }) => (
 
 const ClubsDetailsPage = () => {
   const { profile } = useAuth();
-  const [clubs, setClubs] = useState(initialClubsData);
+  const [clubs, setClubs] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
+
+  useEffect(() => {
+    fetchClubsData();
+  }, []);
+
+  const mapToCamelCase = (row) => ({
+    id: row.id,
+    name: row.name,
+    nextActivity: row.next_activity,
+    activitiesCount: row.activities_count,
+    isActive: row.is_active,
+    activityHistory: row.activity_history
+  });
+
+  const fetchClubsData = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.from('club_statistics').select('*').order('id', { ascending: true });
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        const seedData = initialClubsData.map(c => ({
+          name: c.name,
+          next_activity: c.nextActivity,
+          activities_count: c.activitiesCount,
+          is_active: c.isActive,
+          activity_history: c.activityHistory
+        }));
+        await supabase.from('club_statistics').insert(seedData);
+        const { data: newData } = await supabase.from('club_statistics').select('*').order('id', { ascending: true });
+        setClubs(newData ? newData.map(mapToCamelCase) : []);
+      } else {
+        setClubs(data.map(mapToCamelCase));
+      }
+    } catch (error) {
+      console.error('Error fetching clubs data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleEdit = () => {
     setEditData([...clubs]);
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    setClubs([...editData]);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      for (const club of editData) {
+        await supabase.from('club_statistics').upsert({
+          id: club.id,
+          name: club.name,
+          next_activity: club.nextActivity,
+          activities_count: club.activitiesCount,
+          is_active: club.isActive,
+          activity_history: club.activityHistory
+        });
+      }
+      await fetchClubsData();
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving clubs data:', error);
+    }
   };
 
   const handleCancel = () => {
@@ -78,6 +134,14 @@ const ClubsDetailsPage = () => {
 
     doc.save(`clubs_details_${new Date().getTime()}.pdf`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="page-container flex-center" style={{ minHeight: '60vh' }}>
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 

@@ -1,36 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Edit2, Save, Printer, X, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const initialContactsData = [
-  { id: 1, role: 'Chief Coordinator', name: 'John Doe', email: 'john@makerclubs.edu', phone: '+1 234 567 8900' },
-  { id: 2, role: 'Faculty Advisor', name: 'Dr. Smith', email: 'smith@makerclubs.edu', phone: '+1 234 567 8901' },
+  { role: 'Chief Coordinator', name: 'John Doe', email: 'john@makerclubs.edu', phone: '+1 234 567 8900' },
+  { role: 'Faculty Advisor', name: 'Dr. Smith', email: 'smith@makerclubs.edu', phone: '+1 234 567 8901' },
 ];
 
 const ContactUsPage = () => {
   const { profile } = useAuth();
-  const [contacts, setContacts] = useState(initialContactsData);
+  const [contacts, setContacts] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [contactsToDelete, setContactsToDelete] = useState([]);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
 
+  useEffect(() => {
+    fetchContactsData();
+  }, []);
+
+  const fetchContactsData = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.from('contacts_directory').select('*').order('id', { ascending: true });
+      if (error) throw error;
+      
+      if (!data || data.length === 0) {
+        await supabase.from('contacts_directory').insert(initialContactsData);
+        const { data: newData } = await supabase.from('contacts_directory').select('*').order('id', { ascending: true });
+        setContacts(newData || []);
+      } else {
+        setContacts(data);
+      }
+    } catch (error) {
+      console.error('Error fetching contacts data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEdit = () => {
     setEditData([...contacts]);
+    setContactsToDelete([]);
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    setContacts([...editData]);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      for (const id of contactsToDelete) {
+        await supabase.from('contacts_directory').delete().eq('id', id);
+      }
+      
+      for (const contact of editData) {
+        if (contact.id && typeof contact.id === 'string' && contact.id.startsWith('new-')) {
+          const { id, ...contactData } = contact;
+          await supabase.from('contacts_directory').insert(contactData);
+        } else {
+          await supabase.from('contacts_directory').upsert({
+            id: contact.id,
+            role: contact.role,
+            name: contact.name,
+            email: contact.email,
+            phone: contact.phone
+          });
+        }
+      }
+      
+      await fetchContactsData();
+      setIsEditing(false);
+      setContactsToDelete([]);
+    } catch (error) {
+      console.error('Error saving contacts data:', error);
+    }
   };
 
   const handleCancel = () => {
     setIsEditing(false);
+    setContactsToDelete([]);
   };
 
   const handleChange = (id, field, value) => {
@@ -38,12 +91,15 @@ const ContactUsPage = () => {
   };
 
   const handleAddContact = () => {
-    const newId = editData.length > 0 ? Math.max(...editData.map(c => c.id)) + 1 : 1;
+    const newId = `new-${Date.now()}`;
     setEditData([...editData, { id: newId, role: '', name: '', email: '', phone: '' }]);
   };
 
   const handleRemoveContact = (id) => {
     setEditData(prev => prev.filter(c => c.id !== id));
+    if (typeof id !== 'string' || !id.startsWith('new-')) {
+      setContactsToDelete(prev => [...prev, id]);
+    }
   };
 
   const handlePrint = () => {
@@ -67,6 +123,14 @@ const ContactUsPage = () => {
 
     doc.save(`contacts_directory_${new Date().getTime()}.pdf`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="page-container flex-center" style={{ minHeight: '60vh' }}>
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 

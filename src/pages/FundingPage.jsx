@@ -1,32 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Edit2, Save, Printer, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const initialFundingData = {
-  totalFund: 50000,
-  breakdown: [
-    { id: 1, name: 'Robotics Workshop', value: 15000 },
-    { id: 2, name: 'Annual Hackathon', value: 20000 },
-    { id: 3, name: 'Design Sprint', value: 5000 },
-    { id: 4, name: 'Guest Lectures', value: 8000 },
-    { id: 5, name: 'Miscellaneous', value: 2000 },
-  ]
-};
-
 const COLORS = ['#8A2BE2', '#00C49F', '#FFBB28', '#FF8042', '#0088FE'];
 
 const FundingPage = () => {
   const { profile } = useAuth();
-  const [funding, setFunding] = useState(initialFundingData);
+  const [funding, setFunding] = useState({ totalFund: 0, breakdown: [] });
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ totalFund: 0, breakdown: [] });
+  const [isLoading, setIsLoading] = useState(true);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
+
+  useEffect(() => {
+    fetchFundingData();
+  }, []);
+
+  const fetchFundingData = async () => {
+    setIsLoading(true);
+    try {
+      let { data: overviewData, error: overviewError } = await supabase.from('funding_overview').select('*').eq('id', 1).single();
+      let { data: breakdownData } = await supabase.from('funding_breakdown').select('*').order('id', { ascending: true });
+      
+      if (overviewError && overviewError.code === 'PGRST116') {
+        const initialFundingData = {
+          totalFund: 50000,
+          breakdown: [
+            { name: 'Robotics Workshop', value: 15000 },
+            { name: 'Annual Hackathon', value: 20000 },
+            { name: 'Design Sprint', value: 5000 },
+            { name: 'Guest Lectures', value: 8000 },
+            { name: 'Miscellaneous', value: 2000 },
+          ]
+        };
+        await supabase.from('funding_overview').insert({ id: 1, total_fund: initialFundingData.totalFund });
+        await supabase.from('funding_breakdown').insert(initialFundingData.breakdown);
+        
+        overviewData = { total_fund: initialFundingData.totalFund };
+        const { data: newBreakdown } = await supabase.from('funding_breakdown').select('*').order('id', { ascending: true });
+        breakdownData = newBreakdown;
+      }
+      
+      setFunding({
+        totalFund: overviewData?.total_fund || 0,
+        breakdown: breakdownData || []
+      });
+    } catch (error) {
+      console.error('Error fetching funding data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleEdit = () => {
     setEditData({ 
@@ -36,12 +67,23 @@ const FundingPage = () => {
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    setFunding({ 
-      totalFund: editData.totalFund, 
-      breakdown: [...editData.breakdown] 
-    });
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      await supabase.from('funding_overview').upsert({ id: 1, total_fund: editData.totalFund, updated_at: new Date() });
+      
+      for (const item of editData.breakdown) {
+        await supabase.from('funding_breakdown').upsert({
+          id: item.id,
+          name: item.name,
+          value: item.value
+        });
+      }
+      
+      await fetchFundingData();
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving funding data:', error);
+    }
   };
 
   const handleCancel = () => {
@@ -83,6 +125,14 @@ const FundingPage = () => {
   };
 
   const activeData = isEditing ? editData : funding;
+
+  if (isLoading) {
+    return (
+      <div className="page-container flex-center" style={{ minHeight: '60vh' }}>
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
   return (
     <motion.div 
