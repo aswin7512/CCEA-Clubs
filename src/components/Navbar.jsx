@@ -56,6 +56,24 @@ const Navbar = () => {
         >
           Home
         </Link>
+        <Link
+          to="/clubs-details"
+          className={`nav-link ${isActive('/clubs-details') ? 'active' : ''}`}
+        >
+          Clubs
+        </Link>
+        <Link
+          to="/funding"
+          className={`nav-link ${isActive('/funding') ? 'active' : ''}`}
+        >
+          Funding
+        </Link>
+        <Link
+          to="/contact"
+          className={`nav-link ${isActive('/contact') ? 'active' : ''}`}
+        >
+          Contact
+        </Link>
 
         {user ? (
           <>

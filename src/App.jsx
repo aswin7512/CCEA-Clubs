@@ -21,6 +21,10 @@ import ClubDetail from './pages/ClubDetail';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 
+import ClubsDetailsPage from './pages/ClubsDetailsPage';
+import FundingPage from './pages/FundingPage';
+import ContactUsPage from './pages/ContactUsPage';
+
 const AnimatedRoutes = () => {
   const location = useLocation();
   const { user } = useAuth();
@@ -30,6 +34,9 @@ const AnimatedRoutes = () => {
       <Routes location={location} key={location.pathname}>
         {/* Public */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/clubs-details" element={<ClubsDetailsPage />} />
+        <Route path="/funding" element={<FundingPage />} />
+        <Route path="/contact" element={<ContactUsPage />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
         <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
