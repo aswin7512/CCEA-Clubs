@@ -15,6 +15,7 @@ const FundingPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ totalFund: 0, breakdown: [] });
   const [isLoading, setIsLoading] = useState(true);
+  const [breakdownsToDelete, setBreakdownsToDelete] = useState([]);
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
@@ -64,6 +65,7 @@ const FundingPage = () => {
       totalFund: funding.totalFund, 
       breakdown: [...funding.breakdown] 
     });
+    setBreakdownsToDelete([]);
     setIsEditing(true);
   };
 
@@ -71,16 +73,28 @@ const FundingPage = () => {
     try {
       await supabase.from('funding_overview').upsert({ id: 1, total_fund: editData.totalFund, updated_at: new Date() });
       
+      for (const id of breakdownsToDelete) {
+        await supabase.from('funding_breakdown').delete().eq('id', id);
+      }
+      
       for (const item of editData.breakdown) {
-        await supabase.from('funding_breakdown').upsert({
-          id: item.id,
-          name: item.name,
-          value: item.value
-        });
+        if (item.id && typeof item.id === 'string' && item.id.startsWith('new-')) {
+          await supabase.from('funding_breakdown').insert({
+            name: item.name,
+            value: item.value
+          });
+        } else {
+          await supabase.from('funding_breakdown').upsert({
+            id: item.id,
+            name: item.name,
+            value: item.value
+          });
+        }
       }
       
       await fetchFundingData();
       setIsEditing(false);
+      setBreakdownsToDelete([]);
     } catch (error) {
       console.error('Error saving funding data:', error);
     }
@@ -88,6 +102,7 @@ const FundingPage = () => {
 
   const handleCancel = () => {
     setIsEditing(false);
+    setBreakdownsToDelete([]);
   };
 
   const handleChange = (id, field, value) => {
@@ -101,16 +116,34 @@ const FundingPage = () => {
     setEditData(prev => ({ ...prev, totalFund: parseInt(value) || 0 }));
   };
 
+  const handleAddBreakdown = () => {
+    const newId = `new-${Date.now()}`;
+    setEditData(prev => ({
+      ...prev,
+      breakdown: [...prev.breakdown, { id: newId, name: '', value: 0 }]
+    }));
+  };
+
+  const handleRemoveBreakdown = (id) => {
+    setEditData(prev => ({
+      ...prev,
+      breakdown: prev.breakdown.filter(item => item.id !== id)
+    }));
+    if (typeof id !== 'string' || !id.startsWith('new-')) {
+      setBreakdownsToDelete(prev => [...prev, id]);
+    }
+  };
+
   const handlePrint = () => {
     const doc = new jsPDF();
     doc.text("Maker Clubs - Funding Report", 14, 15);
-    doc.text(`Total Funds Spent: $${funding.totalFund.toLocaleString()}`, 14, 25);
+    doc.text(`Total Funds Spent: ₹${funding.totalFund.toLocaleString('en-IN')}`, 14, 25);
     
-    const tableColumn = ["Category/Activity", "Amount Spent"];
+    const tableColumn = ["Category/Activity/Club", "Amount Spent"];
     const tableRows = [];
 
     funding.breakdown.forEach(item => {
-      tableRows.push([item.name, `$${item.value.toLocaleString()}`]);
+      tableRows.push([item.name, `₹${item.value.toLocaleString('en-IN')}`]);
     });
 
     doc.autoTable({
@@ -194,7 +227,7 @@ const FundingPage = () => {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => `$${value.toLocaleString()}`} contentStyle={{backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '8px'}}/>
+                <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN')}`} contentStyle={{backgroundColor: 'var(--bg-color)', border: '1px solid var(--border-color)', borderRadius: '8px'}}/>
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -207,7 +240,7 @@ const FundingPage = () => {
               <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
                 {isEditing ? (
                   <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ marginRight: '0.5rem' }}>$</span>
+                    <span style={{ marginRight: '0.5rem' }}>₹</span>
                     <input 
                       type="number" 
                       value={editData.totalFund} 
@@ -217,7 +250,7 @@ const FundingPage = () => {
                     />
                   </div>
                 ) : (
-                  `$${funding.totalFund.toLocaleString()}`
+                  `₹${funding.totalFund.toLocaleString('en-IN')}`
                 )}
               </div>
             </div>
@@ -234,6 +267,15 @@ const FundingPage = () => {
                   {activeData.breakdown.map((item, index) => (
                     <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {isEditing && (
+                          <button 
+                            onClick={() => handleRemoveBreakdown(item.id)}
+                            style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            title="Remove"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
                         <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: COLORS[index % COLORS.length] }}></div>
                         {isEditing ? (
                           <input 
@@ -241,6 +283,7 @@ const FundingPage = () => {
                             value={item.name} 
                             onChange={(e) => handleChange(item.id, 'name', e.target.value)}
                             className="form-control"
+                            placeholder="Category or Club Name"
                           />
                         ) : (
                           item.name
@@ -256,7 +299,7 @@ const FundingPage = () => {
                             style={{ textAlign: 'right', width: '120px', marginLeft: 'auto' }}
                           />
                         ) : (
-                          `$${item.value.toLocaleString()}`
+                          `₹${item.value.toLocaleString('en-IN')}`
                         )}
                       </td>
                     </tr>
@@ -264,6 +307,16 @@ const FundingPage = () => {
                 </tbody>
               </table>
             </div>
+            
+            {isEditing && (
+              <button 
+                className="btn btn-outline" 
+                style={{ width: '100%', marginTop: '1rem', borderStyle: 'dashed' }}
+                onClick={handleAddBreakdown}
+              >
+                + Add Funding Breakdown
+              </button>
+            )}
           </div>
         </div>
       </div>
