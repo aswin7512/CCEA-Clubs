@@ -140,6 +140,80 @@ const ManageEvent = () => {
     }
   };
 
+  const handleJSONUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (readerEvent) => {
+      try {
+        const json = JSON.parse(readerEvent.target.result);
+        const scrapedNames = json.scraped_names || json.attendees || [];
+        const classHoursToLog = json.class_hours || [];
+        
+        if (scrapedNames.length === 0) {
+          alert('No names found in the JSON file.');
+          return;
+        }
+
+        setSavingAttendance(true);
+        let updatedCount = 0;
+
+        const updates = registrations.map(async (reg) => {
+          if (reg.status !== 'approved') return reg;
+          
+          const regName = (reg.profiles?.name || "").toLowerCase().trim();
+          
+          const isMatch = scrapedNames.some(name => {
+             const lowerName = name.toLowerCase().trim();
+             return regName.includes(lowerName) || lowerName.includes(regName);
+          });
+
+          if (isMatch) {
+            let updatedReg = { ...reg };
+            
+            if (event.is_during_class_hours && classHoursToLog.length > 0) {
+                const currentHours = Array.isArray(reg.attended_hours) ? reg.attended_hours : [];
+                const mergedHours = Array.from(new Set([...currentHours, ...classHoursToLog])).sort((a,b)=>a-b);
+                
+                const { error } = await supabase
+                  .from('event_registrations')
+                  .update({ attended_hours: mergedHours })
+                  .eq('id', reg.id);
+                  
+                if (!error) {
+                   updatedReg.attended_hours = mergedHours;
+                   updatedCount++;
+                }
+            } else {
+                const { error } = await supabase
+                  .from('event_registrations')
+                  .update({ is_present: true })
+                  .eq('id', reg.id);
+                  
+                if (!error) {
+                   updatedReg.is_present = true;
+                   updatedCount++;
+                }
+            }
+            return updatedReg;
+          }
+          return reg;
+        });
+
+        const newRegistrations = await Promise.all(updates);
+        setRegistrations(newRegistrations);
+        alert(`Successfully auto-logged attendance for ${updatedCount} participant(s)!`);
+      } catch (err) {
+        alert('Failed to parse JSON or update attendance: ' + err.message);
+      } finally {
+        setSavingAttendance(false);
+        e.target.value = null; // Reset input
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const exportAttendancePDF = () => {
     generateAttendancePDF(event, registrations);
   };
@@ -270,6 +344,10 @@ const ManageEvent = () => {
           <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Date: {new Date(event.event_date).toLocaleDateString()}</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <label className="btn btn-outline" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            Auto-Log JSON
+            <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleJSONUpload} disabled={savingAttendance} />
+          </label>
           <button onClick={exportSubmissionCSV} className="btn btn-secondary">
             Export Submissions to CSV
           </button>
