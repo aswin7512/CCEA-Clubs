@@ -10,6 +10,7 @@ import ParticleBackground from './components/ParticleBackground';
 import HomePage from './pages/HomePage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyOtp from './pages/VerifyOtp';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import CreateChapter from './pages/CreateChapter';
@@ -39,6 +40,7 @@ const AnimatedRoutes = () => {
         <Route path="/contact" element={<ContactUsPage />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
+        <Route path="/verify-otp" element={<VerifyOtp />} />
         <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
         <Route path="/update-password" element={<UpdatePassword />} />
 

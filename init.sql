@@ -167,3 +167,47 @@ CREATE POLICY "Allow all operations for authenticated users on funding_overview"
 CREATE POLICY "Allow all operations for authenticated users on funding_breakdown" ON public.funding_breakdown FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on club_statistics" ON public.club_statistics FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on contacts_directory" ON public.contacts_directory FOR ALL USING (auth.role() = 'authenticated');
+
+-- 11. Helper function for verifying uniqueness of fields prior to signup (SECURITY DEFINER to bypass RLS)
+CREATE OR REPLACE FUNCTION public.check_duplicate_profile_fields(
+  phone_to_check text, 
+  prp_to_check text, 
+  email_to_check text DEFAULT NULL
+)
+RETURNS TABLE (phone_exists boolean, prp_exists boolean, email_exists boolean) 
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    EXISTS(SELECT 1 FROM public.profiles WHERE phone_number = phone_to_check) AS phone_exists,
+    EXISTS(SELECT 1 FROM public.profiles WHERE prp_code = prp_to_check AND prp_to_check IS NOT NULL) AS prp_exists,
+    EXISTS(SELECT 1 FROM public.profiles WHERE email = email_to_check AND email_to_check IS NOT NULL) AS email_exists;
+END;
+$$;
+
+-- 12. Trigger function to copy user metadata to profiles table on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, role, name, department, division, prp_code, phone_number, roll_number)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE((new.raw_user_meta_data->>'role')::public.user_role, 'student'),
+    COALESCE(new.raw_user_meta_data->>'name', ''),
+    COALESCE(new.raw_user_meta_data->>'department', ''),
+    new.raw_user_meta_data->>'division',
+    new.raw_user_meta_data->>'prp_code',
+    COALESCE(new.raw_user_meta_data->>'phone_number', ''),
+    new.raw_user_meta_data->>'roll_number'
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 13. Trigger to execute handle_new_user on auth.users insert
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

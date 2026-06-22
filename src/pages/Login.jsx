@@ -8,6 +8,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [emailUnconfirmed, setEmailUnconfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -24,11 +25,18 @@ const Login = () => {
     e.preventDefault();
     try {
       setError('');
+      setEmailUnconfirmed(false);
       setLoading(true);
       await signIn(email, password);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to sign in');
+      if (err.message && (
+        err.message.toLowerCase().includes('confirm') || 
+        err.message.toLowerCase().includes('verification')
+      )) {
+        setEmailUnconfirmed(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -51,7 +59,21 @@ const Login = () => {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              {error}
+              <div>{error}</div>
+              {emailUnconfirmed && (
+                <div style={{ marginTop: '0.4rem' }}>
+                  <Link 
+                    to={`/verify-otp?email=${encodeURIComponent(email)}`}
+                    style={{ 
+                      color: 'inherit', 
+                      textDecoration: 'underline', 
+                      fontWeight: 700 
+                    }}
+                  >
+                    Click here to verify your email.
+                  </Link>
+                </div>
+              )}
             </motion.div>
           )}
 

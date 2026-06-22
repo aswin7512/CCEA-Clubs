@@ -73,11 +73,11 @@ const Profile = () => {
       setLoading(true);
       setVerificationError('');
 
-      // Try with type 'email' first
+      // Try with type 'magiclink' first (standard for passwordless OTP verification)
       let { error: verifyError } = await supabase.auth.verifyOtp({
         email: userEmail,
         token: otp,
-        type: 'email'
+        type: 'magiclink'
       });
 
       // If that fails, try with type 'signup' (in case the user's email is pending confirmation)

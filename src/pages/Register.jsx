@@ -40,36 +40,89 @@ const Register = () => {
         profileData.roll_number = rollNumber;
       }
 
-      // Check if phone number is already registered in public.profiles
-      const { data: existingPhone, error: phoneCheckError } = await supabase
-        .from('profiles')
-        .select('phone_number')
-        .eq('phone_number', phoneNumber)
-        .maybeSingle();
+      // 1. Try checking for duplicates using the secure RPC function
+      let isDuplicatePhone = false;
+      let isDuplicatePRP = false;
+      let isDuplicateEmail = false;
 
-      if (phoneCheckError) throw phoneCheckError;
-      if (existingPhone) {
+      try {
+        const { data: dupData, error: rpcError } = await supabase
+          .rpc('check_duplicate_profile_fields', { 
+            phone_to_check: phoneNumber, 
+            prp_to_check: role === 'student' && prpCode ? prpCode : null,
+            email_to_check: email
+          });
+
+        if (!rpcError && dupData && dupData.length > 0) {
+          isDuplicatePhone = dupData[0].phone_exists;
+          isDuplicatePRP = dupData[0].prp_exists;
+          isDuplicateEmail = dupData[0].email_exists;
+        } else {
+          // If RPC fails (e.g. not created yet in DB), fall back to direct checks
+          const { data: existingEmail } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+          if (existingEmail) isDuplicateEmail = true;
+
+          const { data: existingPhone } = await supabase
+            .from('profiles')
+            .select('phone_number')
+            .eq('phone_number', phoneNumber)
+            .maybeSingle();
+          if (existingPhone) isDuplicatePhone = true;
+
+          if (role === 'student' && prpCode) {
+            const { data: existingPRP } = await supabase
+              .from('profiles')
+              .select('prp_code')
+              .eq('prp_code', prpCode)
+              .maybeSingle();
+            if (existingPRP) isDuplicatePRP = true;
+          }
+        }
+      } catch (err) {
+        console.warn('Error checking duplicates:', err);
+      }
+
+      if (isDuplicateEmail) {
+        throw new Error('This email is already registered.');
+      }
+      if (isDuplicatePhone) {
         throw new Error('This phone number is already registered.');
       }
-
-      // Check if PRP Code is already registered for students
-      if (role === 'student' && prpCode) {
-        const { data: existingPRP, error: prpCheckError } = await supabase
-          .from('profiles')
-          .select('prp_code')
-          .eq('prp_code', prpCode)
-          .maybeSingle();
-
-        if (prpCheckError) throw prpCheckError;
-        if (existingPRP) {
-          throw new Error('This PRP Code is already registered.');
-        }
+      if (isDuplicatePRP) {
+        throw new Error('This PRP Code is already registered.');
       }
 
-      await signUp(email, password, profileData);
-      navigate('/dashboard');
+      const authData = await signUp(email, password, profileData);
+      if (authData?.session) {
+        navigate('/dashboard');
+      } else {
+        navigate('/verify-otp', { state: { email } });
+      }
     } catch (err) {
-      setError(err.message || 'Failed to create an account');
+      let errMsg = err.message || 'Failed to create an account';
+      
+      const knownCleanErrors = [
+        'This email is already registered.',
+        'This phone number is already registered.',
+        'This PRP Code is already registered.'
+      ];
+      
+      if (!knownCleanErrors.includes(errMsg)) {
+        if (errMsg.toLowerCase().includes('user already registered') || errMsg.toLowerCase().includes('email already exists') || errMsg.toLowerCase().includes('email_exists')) {
+          errMsg = 'This email is already registered.';
+        } else if (errMsg.toLowerCase().includes('profiles_phone_number_key') || errMsg.toLowerCase().includes('phone_number')) {
+          errMsg = 'This phone number is already registered.';
+        } else if (errMsg.toLowerCase().includes('profiles_prp_code_key') || errMsg.toLowerCase().includes('prp_code')) {
+          errMsg = 'This PRP Code is already registered.';
+        } else if (errMsg.toLowerCase().includes('database error saving new user') || errMsg.toLowerCase().includes('cannot insert data to database')) {
+          errMsg = 'Registration failed: This phone number or PRP Code may already be registered.';
+        }
+      }
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
