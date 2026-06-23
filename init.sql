@@ -126,26 +126,10 @@ BEGIN
 END $$;
 
 -- 10. Add tables for Funding, Clubs Directory and Contact Directory
-CREATE TABLE public.funding_overview (
-  id INT PRIMARY KEY DEFAULT 1,
-  total_fund BIGINT NOT NULL DEFAULT 0,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 CREATE TABLE public.funding_breakdown (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  value BIGINT NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE public.club_statistics (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  next_activity TEXT,
-  activities_count INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  activity_history JSONB DEFAULT '[]'::jsonb,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_name TEXT NOT NULL,
+  amount BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -158,14 +142,10 @@ CREATE TABLE public.contacts_directory (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.funding_overview ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.funding_breakdown ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.club_statistics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contacts_directory ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all operations for authenticated users on funding_overview" ON public.funding_overview FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on funding_breakdown" ON public.funding_breakdown FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Allow all operations for authenticated users on club_statistics" ON public.club_statistics FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on contacts_directory" ON public.contacts_directory FOR ALL USING (auth.role() = 'authenticated');
 
 -- 11. Helper function for verifying uniqueness of fields prior to signup (SECURITY DEFINER to bypass RLS)
