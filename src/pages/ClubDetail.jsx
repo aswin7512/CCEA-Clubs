@@ -80,9 +80,9 @@ const ClubDetail = () => {
   // Determine current user's membership details
   const myMembership = memberships.find(m => m.user_id === user?.id);
   const isCampusLead = chapter?.campus_lead_id === user?.id;
-  const isFaculty = profile?.role === 'faculty';
+  const isFaculty = profile?.role === 'faculty' || profile?.role === 'super_admin';
   const isApprovedMember = isCampusLead || myMembership?.status === 'approved' || isFaculty;
-  const isSuperAdmin = profile?.role === 'super_admin';
+  const isSuperAdmin = false;
   const isLeader = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
   const canManageRoles = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
 

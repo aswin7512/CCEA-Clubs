@@ -126,15 +126,31 @@ BEGIN
 END $$;
 
 -- 10. Add tables for Funding, Clubs Directory and Contact Directory
+CREATE TABLE public.funding_overview (
+  id SERIAL PRIMARY KEY,
+  total_fund BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE public.funding_breakdown (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   category_name TEXT NOT NULL,
   amount BIGINT NOT NULL DEFAULT 0,
+  club_id UUID REFERENCES public.clubs_directory(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.clubs_directory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  next_activity TEXT,
+  activities_count INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE public.contacts_directory (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   role TEXT,
   name TEXT NOT NULL,
   email TEXT,
@@ -142,10 +158,14 @@ CREATE TABLE public.contacts_directory (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.funding_overview ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.funding_breakdown ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clubs_directory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contacts_directory ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Allow all operations for authenticated users on funding_overview" ON public.funding_overview FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on funding_breakdown" ON public.funding_breakdown FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow all operations for authenticated users on clubs_directory" ON public.clubs_directory FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all operations for authenticated users on contacts_directory" ON public.contacts_directory FOR ALL USING (auth.role() = 'authenticated');
 
 -- 11. Helper function for verifying uniqueness of fields prior to signup (SECURITY DEFINER to bypass RLS)

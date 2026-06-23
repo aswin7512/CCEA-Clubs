@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Sun, Moon, LogOut, User, LayoutDashboard } from 'lucide-react';
+import { Sun, Moon, LogOut, User, LayoutDashboard, Shield } from 'lucide-react';
 
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -84,6 +84,15 @@ const Navbar = () => {
               <LayoutDashboard size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
               Dashboard
             </Link>
+            {profile?.role === 'super_admin' && (
+              <Link
+                to="/admin"
+                className={`nav-link ${isActive('/admin') ? 'active' : ''}`}
+              >
+                <Shield size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Admin Panel
+              </Link>
+            )}
             <Link
               to="/profile"
               className={`nav-link ${isActive('/profile') ? 'active' : ''}`}

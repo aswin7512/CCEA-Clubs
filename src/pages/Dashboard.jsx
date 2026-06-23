@@ -68,9 +68,8 @@ const Dashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
         >
-          {profile.role === 'super_admin' && <SuperAdminDashboard />}
+          {(profile.role === 'student' || profile.role === 'super_admin') && <StudentDashboard />}
           {profile.role === 'faculty' && <FacultyDashboard />}
-          {profile.role === 'student' && <StudentDashboard />}
         </motion.div>
       </div>
     </AnimatedPage>

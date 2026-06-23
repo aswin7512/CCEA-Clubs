@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Edit2, Save, Printer, X } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -16,6 +16,8 @@ const FundingPage = () => {
   const [editData, setEditData] = useState({ totalFund: 0, breakdown: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [breakdownsToDelete, setBreakdownsToDelete] = useState([]);
+  const [clubsList, setClubsList] = useState([]);
+  const [selectedClubFilter, setSelectedClubFilter] = useState('all');
 
   const isSuperAdmin = profile?.role === 'super_admin';
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
@@ -31,27 +33,21 @@ const FundingPage = () => {
       let { data: breakdownData } = await supabase.from('funding_breakdown').select('*').order('id', { ascending: true });
       
       if (overviewError && overviewError.code === 'PGRST116') {
-        const initialFundingData = {
-          totalFund: 50000,
-          breakdown: [
-            { name: 'Robotics Workshop', value: 15000 },
-            { name: 'Annual Hackathon', value: 20000 },
-            { name: 'Design Sprint', value: 5000 },
-            { name: 'Guest Lectures', value: 8000 },
-            { name: 'Miscellaneous', value: 2000 },
-          ]
-        };
-        await supabase.from('funding_overview').insert({ id: 1, total_fund: initialFundingData.totalFund });
-        await supabase.from('funding_breakdown').insert(initialFundingData.breakdown);
-        
-        overviewData = { total_fund: initialFundingData.totalFund };
-        const { data: newBreakdown } = await supabase.from('funding_breakdown').select('*').order('id', { ascending: true });
-        breakdownData = newBreakdown;
+        overviewData = { total_fund: 0 };
+        breakdownData = [];
       }
       
+      const { data: clubsData } = await supabase.from('clubs_directory').select('id, name').order('name', { ascending: true });
+      setClubsList(clubsData || []);
+
       setFunding({
         totalFund: overviewData?.total_fund || 0,
-        breakdown: breakdownData || []
+        breakdown: (breakdownData || []).map(item => ({
+          id: item.id,
+          name: item.category_name,
+          value: Number(item.amount),
+          clubId: item.club_id
+        }))
       });
     } catch (error) {
       console.error('Error fetching funding data:', error);
@@ -61,6 +57,7 @@ const FundingPage = () => {
   };
 
   const handleEdit = () => {
+    setSelectedClubFilter('all');
     setEditData({ 
       totalFund: funding.totalFund, 
       breakdown: [...funding.breakdown] 
@@ -71,32 +68,41 @@ const FundingPage = () => {
 
   const handleSave = async () => {
     try {
-      await supabase.from('funding_overview').upsert({ id: 1, total_fund: editData.totalFund, updated_at: new Date() });
+      const calculatedTotalSum = editData.breakdown.reduce((sum, item) => sum + item.value, 0);
+      const { error: overviewErr } = await supabase.from('funding_overview').upsert({ id: 1, total_fund: calculatedTotalSum, updated_at: new Date() });
+      if (overviewErr) throw overviewErr;
       
       for (const id of breakdownsToDelete) {
-        await supabase.from('funding_breakdown').delete().eq('id', id);
+        const { error: deleteErr } = await supabase.from('funding_breakdown').delete().eq('id', id);
+        if (deleteErr) throw deleteErr;
       }
       
       for (const item of editData.breakdown) {
         if (item.id && typeof item.id === 'string' && item.id.startsWith('new-')) {
-          await supabase.from('funding_breakdown').insert({
-            name: item.name,
-            value: item.value
+          const { error: insertErr } = await supabase.from('funding_breakdown').insert({
+            category_name: item.name,
+            amount: item.value,
+            club_id: item.clubId || null
           });
+          if (insertErr) throw insertErr;
         } else {
-          await supabase.from('funding_breakdown').upsert({
+          const { error: upsertErr } = await supabase.from('funding_breakdown').upsert({
             id: item.id,
-            name: item.name,
-            value: item.value
+            category_name: item.name,
+            amount: item.value,
+            club_id: item.clubId || null
           });
+          if (upsertErr) throw upsertErr;
         }
       }
       
       await fetchFundingData();
       setIsEditing(false);
       setBreakdownsToDelete([]);
+      alert('Funding data updated successfully!');
     } catch (error) {
       console.error('Error saving funding data:', error);
+      alert('Failed to save funding data: ' + (error.message || error));
     }
   };
 
@@ -112,15 +118,11 @@ const FundingPage = () => {
     }));
   };
 
-  const handleTotalChange = (value) => {
-    setEditData(prev => ({ ...prev, totalFund: parseInt(value) || 0 }));
-  };
-
   const handleAddBreakdown = () => {
     const newId = `new-${Date.now()}`;
     setEditData(prev => ({
       ...prev,
-      breakdown: [...prev.breakdown, { id: newId, name: '', value: 0 }]
+      breakdown: [...prev.breakdown, { id: newId, name: '', value: 0, clubId: '' }]
     }));
   };
 
@@ -135,18 +137,20 @@ const FundingPage = () => {
   };
 
   const handlePrint = () => {
+    const calculatedTotalSum = funding.breakdown.reduce((sum, item) => sum + item.value, 0);
     const doc = new jsPDF();
     doc.text("Maker Clubs - Funding Report", 14, 15);
-    doc.text(`Total Funds Spent: ₹${funding.totalFund.toLocaleString('en-IN')}`, 14, 25);
+    doc.text(`Total Funds Spent: ₹${calculatedTotalSum.toLocaleString('en-IN')}`, 14, 25);
     
-    const tableColumn = ["Category/Activity/Club", "Amount Spent"];
+    const tableColumn = ["Category/Activity/Club", "Associated Club", "Amount Spent"];
     const tableRows = [];
 
     funding.breakdown.forEach(item => {
-      tableRows.push([item.name, `₹${item.value.toLocaleString('en-IN')}`]);
+      const associatedClubName = clubsList.find(c => c.id === item.clubId)?.name || 'General / None';
+      tableRows.push([item.name, associatedClubName, `₹${item.value.toLocaleString('en-IN')}`]);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 30,
@@ -158,6 +162,32 @@ const FundingPage = () => {
   };
 
   const activeData = isEditing ? editData : funding;
+
+  const filteredBreakdown = React.useMemo(() => {
+    if (isEditing || selectedClubFilter === 'all') return activeData.breakdown;
+    if (selectedClubFilter === 'general') return activeData.breakdown.filter(item => !item.clubId);
+    return activeData.breakdown.filter(item => item.clubId === selectedClubFilter);
+  }, [activeData.breakdown, selectedClubFilter, isEditing]);
+
+  const chartData = React.useMemo(() => {
+    const groupMap = {};
+    const itemsToGroup = (isEditing || selectedClubFilter === 'all')
+      ? activeData.breakdown
+      : activeData.breakdown.filter(item => selectedClubFilter === 'general' ? !item.clubId : item.clubId === selectedClubFilter);
+
+    itemsToGroup.forEach(item => {
+      const key = (isEditing || selectedClubFilter === 'all')
+        ? (clubsList.find(c => c.id === item.clubId)?.name || 'General')
+        : item.name;
+
+      if (!groupMap[key]) {
+        groupMap[key] = 0;
+      }
+      groupMap[key] += item.value;
+    });
+
+    return Object.entries(groupMap).map(([name, value]) => ({ name, value }));
+  }, [activeData.breakdown, clubsList, selectedClubFilter, isEditing]);
 
   if (isLoading) {
     return (
@@ -208,6 +238,24 @@ const FundingPage = () => {
           </div>
         </div>
 
+        {!isEditing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Filter by Club:</span>
+            <select
+              value={selectedClubFilter}
+              onChange={e => setSelectedClubFilter(e.target.value)}
+              className="form-control"
+              style={{ maxWidth: '250px', padding: '0.4rem 0.75rem', borderRadius: '8px' }}
+            >
+              <option value="all">All Clubs & General</option>
+              <option value="general">General / None</option>
+              {clubsList.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', alignItems: 'center' }}>
           {/* Chart Section */}
           <div style={{ height: '400px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', padding: '1rem' }}>
@@ -215,7 +263,7 @@ const FundingPage = () => {
             <ResponsiveContainer width="100%" height="90%">
               <PieChart>
                 <Pie
-                  data={activeData.breakdown}
+                  data={chartData}
                   cx="50%"
                   cy="50%"
                   innerRadius={80}
@@ -223,7 +271,7 @@ const FundingPage = () => {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {activeData.breakdown.map((entry, index) => (
+                  {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -238,20 +286,7 @@ const FundingPage = () => {
             <div className="card" style={{ backgroundColor: 'var(--primary-color)', color: 'white', marginBottom: '2rem' }}>
               <h3 style={{ opacity: 0.9, marginBottom: '0.5rem', fontSize: '1rem' }}>Total Funds Spent</h3>
               <div style={{ fontSize: '2.5rem', fontWeight: 700 }}>
-                {isEditing ? (
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ marginRight: '0.5rem' }}>₹</span>
-                    <input 
-                      type="number" 
-                      value={editData.totalFund} 
-                      onChange={(e) => handleTotalChange(e.target.value)}
-                      className="form-control"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', fontSize: '2rem', padding: '0.5rem' }}
-                    />
-                  </div>
-                ) : (
-                  `₹${funding.totalFund.toLocaleString('en-IN')}`
-                )}
+                ₹{filteredBreakdown.reduce((sum, item) => sum + item.value, 0).toLocaleString('en-IN')}
               </div>
             </div>
 
@@ -260,11 +295,12 @@ const FundingPage = () => {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
                     <th style={{ padding: '1rem' }}>Category</th>
+                    <th style={{ padding: '1rem' }}>Associated Club</th>
                     <th style={{ padding: '1rem', textAlign: 'right' }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeData.breakdown.map((item, index) => (
+                  {filteredBreakdown.map((item, index) => (
                     <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {isEditing && (
@@ -289,12 +325,29 @@ const FundingPage = () => {
                           item.name
                         )}
                       </td>
+                      <td style={{ padding: '1rem' }}>
+                        {isEditing ? (
+                          <select
+                            value={item.clubId || ''}
+                            onChange={(e) => handleChange(item.id, 'clubId', e.target.value || null)}
+                            className="form-control"
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.9rem' }}
+                          >
+                            <option value="">General / None</option>
+                            {clubsList.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          clubsList.find(c => c.id === item.clubId)?.name || <span className="text-secondary" style={{ fontStyle: 'italic' }}>General / None</span>
+                        )}
+                      </td>
                       <td style={{ padding: '1rem', textAlign: 'right' }}>
                         {isEditing ? (
                           <input 
                             type="number" 
                             value={item.value} 
-                            onChange={(e) => handleChange(item.id, 'value', parseInt(e.target.value))}
+                            onChange={(e) => handleChange(item.id, 'value', parseInt(e.target.value) || 0)}
                             className="form-control"
                             style={{ textAlign: 'right', width: '120px', marginLeft: 'auto' }}
                           />

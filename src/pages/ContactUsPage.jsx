@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { Edit2, Save, Printer, X, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -55,29 +55,34 @@ const ContactUsPage = () => {
   const handleSave = async () => {
     try {
       for (const id of contactsToDelete) {
-        await supabase.from('contacts_directory').delete().eq('id', id);
+        const { error } = await supabase.from('contacts_directory').delete().eq('id', id);
+        if (error) throw error;
       }
       
       for (const contact of editData) {
         if (contact.id && typeof contact.id === 'string' && contact.id.startsWith('new-')) {
           const { id, ...contactData } = contact;
-          await supabase.from('contacts_directory').insert(contactData);
+          const { error } = await supabase.from('contacts_directory').insert(contactData);
+          if (error) throw error;
         } else {
-          await supabase.from('contacts_directory').upsert({
+          const { error } = await supabase.from('contacts_directory').upsert({
             id: contact.id,
             role: contact.role,
             name: contact.name,
             email: contact.email,
             phone: contact.phone
           });
+          if (error) throw error;
         }
       }
       
       await fetchContactsData();
       setIsEditing(false);
       setContactsToDelete([]);
+      alert('Contacts saved successfully!');
     } catch (error) {
       console.error('Error saving contacts data:', error);
+      alert('Error saving contacts: ' + (error.message || error));
     }
   };
 
@@ -113,7 +118,7 @@ const ContactUsPage = () => {
       tableRows.push([contact.role, contact.name, contact.email, contact.phone]);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 25,

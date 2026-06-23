@@ -2,28 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import { BarChart, Bar, ResponsiveContainer, Tooltip } from 'recharts';
+import autoTable from 'jspdf-autotable';
 import { Edit2, Save, Printer, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const initialClubsData = [
-  { name: 'Robotics Club', nextActivity: 'Robo Wars Prep', activitiesCount: 15, isActive: true, activityHistory: [{v: 5}, {v: 10}, {v: 15}, {v: 8}] },
-  { name: 'Coding Club', nextActivity: 'Hackathon 2026', activitiesCount: 24, isActive: true, activityHistory: [{v: 12}, {v: 20}, {v: 18}, {v: 24}] },
-  { name: 'Design Club', nextActivity: 'UI/UX Workshop', activitiesCount: 8, isActive: true, activityHistory: [{v: 2}, {v: 5}, {v: 4}, {v: 8}] },
-  { name: 'Debate Club', nextActivity: 'TBD', activitiesCount: 2, isActive: false, activityHistory: [{v: 1}, {v: 2}, {v: 0}, {v: 0}] }
-];
-
-const MiniGraph = ({ data, isActive }) => (
-  <div style={{ width: '100px', height: '40px' }}>
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data}>
-        <Tooltip cursor={{fill: 'transparent'}} contentStyle={{backgroundColor: 'var(--bg-secondary)', border: 'none', borderRadius: '4px', padding: '2px 5px', fontSize: '10px'}}/>
-        <Bar dataKey="v" fill={isActive ? 'var(--primary-color)' : 'var(--text-muted)'} radius={[2, 2, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>
-);
 
 const ClubsDetailsPage = () => {
   const { profile } = useAuth();
@@ -44,30 +26,16 @@ const ClubsDetailsPage = () => {
     name: row.name,
     nextActivity: row.next_activity,
     activitiesCount: row.activities_count,
-    isActive: row.is_active,
-    activityHistory: row.activity_history
+    isActive: row.is_active
   });
 
   const fetchClubsData = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('club_statistics').select('*').order('id', { ascending: true });
+      const { data, error } = await supabase.from('clubs_directory').select('*').order('id', { ascending: true });
       if (error) throw error;
       
-      if (!data || data.length === 0) {
-        const seedData = initialClubsData.map(c => ({
-          name: c.name,
-          next_activity: c.nextActivity,
-          activities_count: c.activitiesCount,
-          is_active: c.isActive,
-          activity_history: c.activityHistory
-        }));
-        await supabase.from('club_statistics').insert(seedData);
-        const { data: newData } = await supabase.from('club_statistics').select('*').order('id', { ascending: true });
-        setClubs(newData ? newData.map(mapToCamelCase) : []);
-      } else {
-        setClubs(data.map(mapToCamelCase));
-      }
+      setClubs(data ? data.map(mapToCamelCase) : []);
     } catch (error) {
       console.error('Error fetching clubs data:', error);
     } finally {
@@ -83,19 +51,21 @@ const ClubsDetailsPage = () => {
   const handleSave = async () => {
     try {
       for (const club of editData) {
-        await supabase.from('club_statistics').upsert({
+        const { error } = await supabase.from('clubs_directory').upsert({
           id: club.id,
           name: club.name,
           next_activity: club.nextActivity,
           activities_count: club.activitiesCount,
-          is_active: club.isActive,
-          activity_history: club.activityHistory
+          is_active: club.isActive
         });
+        if (error) throw error;
       }
       await fetchClubsData();
       setIsEditing(false);
+      alert('Clubs updated successfully!');
     } catch (error) {
       console.error('Error saving clubs data:', error);
+      alert('Failed to update clubs: ' + (error.message || error));
     }
   };
 
@@ -124,7 +94,7 @@ const ClubsDetailsPage = () => {
       tableRows.push(clubData);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 20,
@@ -191,7 +161,6 @@ const ClubsDetailsPage = () => {
                 <th style={{ padding: '1rem' }}>Club Name</th>
                 <th style={{ padding: '1rem' }}>Next Activity</th>
                 <th style={{ padding: '1rem' }}>Total Activities</th>
-                <th style={{ padding: '1rem' }}>Status Trend</th>
                 <th style={{ padding: '1rem' }}>Status</th>
               </tr>
             </thead>
@@ -238,9 +207,6 @@ const ClubsDetailsPage = () => {
                         {club.activitiesCount}
                       </span>
                     )}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <MiniGraph data={club.activityHistory} isActive={club.isActive} />
                   </td>
                   <td style={{ padding: '1rem' }}>
                     {isEditing ? (

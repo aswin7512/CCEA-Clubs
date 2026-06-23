@@ -47,7 +47,7 @@ const EventDetail = () => {
       // Check if user is host or leader
       const isCreator = eventData.created_by === user.id;
       const isCoHost = (eventData.co_hosts || []).includes(user.id);
-      const isSuperAdmin = profile?.role === 'super_admin';
+      const isSuperAdmin = false;
 
       let isChapterLeader = false;
       const { data: leaderMember, error: leaderError } = await supabase
@@ -305,7 +305,7 @@ const EventDetail = () => {
           <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)', lineHeight: 1.7 }}>{event.description}</p>
         </motion.div>
 
-        {profile?.role === 'faculty' && isEventOver(event) && (
+        {(profile?.role === 'faculty' || profile?.role === 'super_admin') && isEventOver(event) && (
           <motion.div
             className="glass-panel text-center"
             style={{ marginBottom: '2rem', border: '1px dashed var(--secondary-color)' }}
@@ -334,7 +334,7 @@ const EventDetail = () => {
           </motion.div>
         )}
 
-        {profile?.role !== 'faculty' && (
+        {profile?.role !== 'faculty' && profile?.role !== 'super_admin' && (
           !hasApplied ? (
             isEventOver(event) ? (
               <motion.div

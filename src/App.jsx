@@ -21,6 +21,7 @@ import UpdatePassword from './pages/UpdatePassword';
 import ClubDetail from './pages/ClubDetail';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
+import SuperAdminPage from './pages/SuperAdminPage';
 
 import ClubsDetailsPage from './pages/ClubsDetailsPage';
 import FundingPage from './pages/FundingPage';
@@ -51,22 +52,22 @@ const AnimatedRoutes = () => {
           </ProtectedRoute>
         } />
         <Route path="/create-chapter" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty']}>
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <CreateChapter />
           </ProtectedRoute>
         } />
         <Route path="/host-event" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty']}>
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <HostEvent />
           </ProtectedRoute>
         } />
         <Route path="/edit-event/:eventId" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty']}>
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <HostEvent />
           </ProtectedRoute>
         } />
         <Route path="/event/:eventId" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty']}>
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <EventDetail />
           </ProtectedRoute>
         } />
@@ -76,13 +77,18 @@ const AnimatedRoutes = () => {
           </ProtectedRoute>
         } />
         <Route path="/club/:chapterId" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty']}>
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <ClubDetail />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={
           <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <Profile />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <SuperAdminPage />
           </ProtectedRoute>
         } />
       </Routes>

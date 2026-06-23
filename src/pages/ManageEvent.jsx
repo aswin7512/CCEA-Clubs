@@ -40,7 +40,7 @@ const ManageEvent = () => {
       // Check authorization (creator, co-host, super_admin, or leader)
       const isCreator = eventData.created_by === user.id;
       const isCoHost = (eventData.co_hosts || []).includes(user.id);
-      const isSuperAdmin = profile?.role === 'super_admin';
+      const isSuperAdmin = false;
 
       let isChapterLeader = false;
       const { data: leaderMember, error: leaderError } = await supabase
