@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { generateAttendancePDF } from '../lib/pdfUtils';
+import avatarDb from '../assets/db.json';
 
 const ManageEvent = () => {
   const { eventId } = useParams();
@@ -15,6 +16,7 @@ const ManageEvent = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedStudentReg, setSelectedStudentReg] = useState(null);
+  const [scrapedAvatars, setScrapedAvatars] = useState([]);
   
   // To allow quick saving without massive payload
   const [savingAttendance, setSavingAttendance] = useState(false);
@@ -164,9 +166,21 @@ const ManageEvent = () => {
           
           const regName = (reg.profiles?.name || "").toLowerCase().trim();
           
-          const isMatch = scrapedNames.some(name => {
-             const lowerName = name.toLowerCase().trim();
-             return regName.includes(lowerName) || lowerName.includes(regName);
+          const isMatch = scrapedNames.some(person => {
+             // Handle both old string format and new object format
+             const nameStr = (typeof person === 'string' ? person : person.name).toLowerCase().trim();
+             const avatarUrl = typeof person === 'object' ? person.avatar_url : null;
+             
+             // 1. Exact Match via Avatar URL mapping (if exists)
+             if (avatarUrl && avatarDb[avatarUrl]) {
+                 const mappedFullName = avatarDb[avatarUrl].toLowerCase().trim();
+                 if (regName === mappedFullName) {
+                     return true;
+                 }
+             }
+
+             // 2. Fallback: Fuzzy Name Match
+             return regName.includes(nameStr) || nameStr.includes(regName);
           });
 
           if (isMatch) {
@@ -475,6 +489,23 @@ const ManageEvent = () => {
           </table>
         )}
       </div>
+
+      {scrapedAvatars.length > 0 && (
+        <div className="glass-panel" style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1.5rem' }}>Scraped Avatars (Unmatched Attendance)</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+            {scrapedAvatars.map((src, idx) => (
+              <div key={idx} style={{ textAlign: 'center' }}>
+                <img 
+                  src={src} 
+                  alt="avatar" 
+                  style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-color)' }} 
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Selected Student Detail Modal */}
       {selectedStudentReg && (

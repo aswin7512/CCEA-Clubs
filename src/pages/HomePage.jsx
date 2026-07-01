@@ -152,14 +152,16 @@ const HomePage = () => {
           viewport={{ once: true, margin: '-50px' }}
         >
           {topClubs.map((club, index) => (
-            <motion.div key={club.id} variants={item} className="club-roster-item">
-              <div className="club-roster-rank">#{index + 1}</div>
-              <div className="club-roster-name">{club.name}</div>
-              <div className="club-roster-count">
-                <Users size={16} />
-                {club.memberCount}
-              </div>
-            </motion.div>
+            <Link to={`/club/${club.id}`} key={club.id} style={{ textDecoration: 'none' }}>
+              <motion.div variants={item} className="club-roster-item" whileHover={{ scale: 1.02, backgroundColor: 'var(--input-bg)' }}>
+                <div className="club-roster-rank">#{index + 1}</div>
+                <div className="club-roster-name">{club.name}</div>
+                <div className="club-roster-count">
+                  <Users size={16} />
+                  {club.memberCount}
+                </div>
+              </motion.div>
+            </Link>
           ))}
           {topClubs.length === 0 && !loading && (
             <div className="empty-state">No active clubs yet.</div>
@@ -256,10 +258,24 @@ const HomePage = () => {
       )}
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="footer">
-        <p className="footer-text">
+      <footer className="footer" style={{ textAlign: 'center', padding: '2rem', borderTop: '1px solid var(--input-border)', marginTop: '4rem' }}>
+        <p className="footer-text" style={{ marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
           <span>CCEA</span> — Maker Clubs
         </p>
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          Made by Lunarmist-byte
+          <span style={{ margin: '0 8px' }}>|</span>
+          <a href="https://github.com/Lunarmist-byte" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>GitHub</a>
+          <span style={{ margin: '0 8px' }}>|</span>
+          <a href="https://www.linkedin.com/in/amal-s-kumar-ba69a1290/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>LinkedIn</a>
+        </div>
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+          and aswin7512
+          <span style={{ margin: '0 8px' }}>|</span>
+          <a href="https://github.com/aswin7512/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>GitHub</a>
+          <span style={{ margin: '0 8px' }}>|</span>
+          <a href="https://www.linkedin.com/in/aswinrd/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>LinkedIn</a>
+        </div>
       </footer>
     </AnimatedPage>
   );

@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateAttendancePDF } from '../lib/pdfUtils';
 import { isEventOver } from '../lib/eventUtils';
 import AnimatedPage from '../components/AnimatedPage';
-import { ArrowLeft, Calendar, MapPin, Clock, Users, Settings, Edit } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Users, Settings, Edit, Kanban } from 'lucide-react';
 
 const EventDetail = () => {
   const { eventId } = useParams();
@@ -45,20 +45,22 @@ const EventDetail = () => {
       setEvent(eventData);
 
       // Check if user is host or leader
-      const isCreator = eventData.created_by === user.id;
-      const isCoHost = (eventData.co_hosts || []).includes(user.id);
+      const isCreator = eventData.created_by === user?.id;
+      const isCoHost = (eventData.co_hosts || []).includes(user?.id);
       const isSuperAdmin = false;
 
       let isChapterLeader = false;
-      const { data: leaderMember, error: leaderError } = await supabase
-        .from('club_members')
-        .select('role, status')
-        .eq('chapter_id', eventData.chapter_id)
-        .eq('user_id', user.id)
-        .single();
+      if (user) {
+        const { data: leaderMember, error: leaderError } = await supabase
+          .from('club_members')
+          .select('role, status')
+          .eq('chapter_id', eventData.chapter_id)
+          .eq('user_id', user.id)
+          .single();
 
-      if (!leaderError && leaderMember?.status === 'approved' && ['core_team', 'lead', 'faculty_coordinator'].includes(leaderMember?.role)) {
-        isChapterLeader = true;
+        if (!leaderError && leaderMember?.status === 'approved' && ['core_team', 'lead', 'faculty_coordinator'].includes(leaderMember?.role)) {
+          isChapterLeader = true;
+        }
       }
 
       const isAuthorized = isCreator || isCoHost || isSuperAdmin || isChapterLeader;
@@ -99,16 +101,18 @@ const EventDetail = () => {
       setFormData(initialData);
 
       // 3. Check if user already applied
-      const { data: regData, error: regError } = await supabase
-        .from('event_registrations')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      if (user) {
+        const { data: regData, error: regError } = await supabase
+          .from('event_registrations')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (regData) {
-        setHasApplied(true);
-        setApplicationStatus(regData.status);
+        if (regData) {
+          setHasApplied(true);
+          setApplicationStatus(regData.status);
+        }
       }
       
       // 4. Fetch all registrations for PDF export if needed
@@ -253,6 +257,14 @@ const EventDetail = () => {
                 <Users size={15} /> Manage Attendance
               </motion.button>
               <motion.button
+                className="btn btn-secondary"
+                onClick={() => navigate(`/event-kanban/${event.id}`)}
+                style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+                whileTap={{ scale: 0.96 }}
+              >
+                <Kanban size={15} /> Kanban Board
+              </motion.button>
+              <motion.button
                 className="btn btn-outline"
                 onClick={() => navigate(`/edit-event/${event.id}`)}
                 style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
@@ -361,59 +373,66 @@ const EventDetail = () => {
                   <div className="alert alert-danger">{error}</div>
                 )}
 
-                <form onSubmit={handleSubmitRegistration}>
-                  {customFields.map((field) => (
-                    <div key={field.id} className="form-group">
-                      <label className="form-label">
-                        {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
-                      </label>
+                  {!user ? (
+                    <motion.div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                      <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>You need to be signed in to register for this event.</p>
+                      <button className="btn btn-primary" onClick={() => navigate('/login')}>Sign In to Register</button>
+                    </motion.div>
+                  ) : (
+                    <form onSubmit={handleSubmitRegistration}>
+                      {customFields.map((field) => (
+                        <div key={field.id} className="form-group">
+                          <label className="form-label">
+                            {field.field_label} {field.is_required && <span style={{ color: 'var(--danger-color)' }}>*</span>}
+                          </label>
 
-                      {field.field_type === 'text' && (
-                        <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
-                      )}
+                          {field.field_type === 'text' && (
+                            <input type="text" className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'text')} required={field.is_required} />
+                          )}
 
-                      {field.field_type === 'paragraph' && (
-                        <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
-                      )}
+                          {field.field_type === 'paragraph' && (
+                            <textarea className="form-control" rows="3" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'paragraph')} required={field.is_required} />
+                          )}
 
-                      {field.field_type === 'option' && (
-                        <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
-                          <option value="">Select an option</option>
-                          {(field.options || []).map((opt, i) => (
-                            <option key={i} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      )}
+                          {field.field_type === 'option' && (
+                            <select className="form-control" value={formData[field.id] || ''} onChange={e => handleFieldChange(field.id, e.target.value, 'option')} required={field.is_required}>
+                              <option value="">Select an option</option>
+                              {(field.options || []).map((opt, i) => (
+                                <option key={i} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          )}
 
-                      {field.field_type === 'checklist' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          {(field.options || []).map((opt, i) => (
-                            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                              <input
-                                type="checkbox"
-                                checked={(formData[field.id] || []).includes(opt)}
-                                onChange={() => handleFieldChange(field.id, opt, 'checklist')}
-                                style={{ accentColor: 'var(--primary-color)' }}
-                              />
-                              {opt}
-                            </label>
-                          ))}
+                          {field.field_type === 'checklist' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {(field.options || []).map((opt, i) => (
+                                <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={(formData[field.id] || []).includes(opt)}
+                                    onChange={() => handleFieldChange(field.id, opt, 'checklist')}
+                                    style={{ accentColor: 'var(--primary-color)' }}
+                                  />
+                                  {opt}
+                                </label>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      ))}
 
-                  <motion.button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ width: '100%', marginTop: '1rem' }}
-                    disabled={submitting}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    {submitting ? 'Submitting...' : 'Register for Event'}
-                  </motion.button>
-                </form>
-              </motion.div>
+                      <motion.button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ width: '100%', marginTop: '1rem' }}
+                        disabled={submitting}
+                        whileTap={{ scale: 0.97 }}
+                      >
+                        {submitting ? 'Submitting...' : 'Register for Event'}
+                      </motion.button>
+                    </form>
+                  )}
+                </motion.div>
             )
           ) : (
             <motion.div

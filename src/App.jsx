@@ -22,6 +22,7 @@ import ClubDetail from './pages/ClubDetail';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPage from './pages/SuperAdminPage';
+import EventKanban from './pages/EventKanban';
 
 import ClubsDetailsPage from './pages/ClubsDetailsPage';
 import FundingPage from './pages/FundingPage';
@@ -39,6 +40,8 @@ const AnimatedRoutes = () => {
         <Route path="/clubs-details" element={<ClubsDetailsPage />} />
         <Route path="/funding" element={<FundingPage />} />
         <Route path="/contact" element={<ContactUsPage />} />
+        <Route path="/club/:chapterId" element={<ClubDetail />} />
+        <Route path="/event/:eventId" element={<EventDetail />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
@@ -66,19 +69,14 @@ const AnimatedRoutes = () => {
             <HostEvent />
           </ProtectedRoute>
         } />
-        <Route path="/event/:eventId" element={
-          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
-            <EventDetail />
-          </ProtectedRoute>
-        } />
         <Route path="/manage-event/:eventId" element={
           <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <ManageEvent />
           </ProtectedRoute>
         } />
-        <Route path="/club/:chapterId" element={
+        <Route path="/event-kanban/:eventId" element={
           <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
-            <ClubDetail />
+            <EventKanban />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={

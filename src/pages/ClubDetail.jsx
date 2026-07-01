@@ -339,7 +339,14 @@ const ClubDetail = () => {
             </div>
             
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              {profile?.role === 'student' && (
+              {!user ? (
+                <button 
+                  className="btn btn-outline animate-hover" 
+                  onClick={() => navigate('/login')}
+                >
+                  Sign in to Join
+                </button>
+              ) : profile?.role === 'student' && (
                 <div>
                   {!myMembership ? (
                     <button 
