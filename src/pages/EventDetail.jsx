@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateAttendancePDF } from '../lib/pdfUtils';
 import { isEventOver } from '../lib/eventUtils';
 import AnimatedPage from '../components/AnimatedPage';
-import { ArrowLeft, Calendar, MapPin, Clock, Users, Settings, Edit, Kanban } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, Users, Settings, Edit, LayoutDashboard } from 'lucide-react';
 
 const EventDetail = () => {
   const { eventId } = useParams();
@@ -262,7 +262,7 @@ const EventDetail = () => {
                 style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
                 whileTap={{ scale: 0.96 }}
               >
-                <Kanban size={15} /> Kanban Board
+                <LayoutDashboard size={15} /> Kanban Board
               </motion.button>
               <motion.button
                 className="btn btn-outline"
