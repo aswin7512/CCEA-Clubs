@@ -384,12 +384,20 @@ const ClubDetail = () => {
               )}
 
               {isLeader && (
-                <button 
-                  className="btn btn-primary animate-hover" 
-                  onClick={() => navigate(`/host-event?chapterId=${chapterId}`)}
-                >
-                  Host Event
-                </button>
+                <>
+                  <button 
+                    className="btn btn-outline animate-hover" 
+                    onClick={() => navigate(`/club-kanban/${chapterId}`)}
+                  >
+                    Club Tasks
+                  </button>
+                  <button 
+                    className="btn btn-primary animate-hover" 
+                    onClick={() => navigate(`/host-event?chapterId=${chapterId}`)}
+                  >
+                    Host Event
+                  </button>
+                </>
               )}
             </div>
           </div>
