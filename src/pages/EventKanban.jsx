@@ -14,8 +14,6 @@ const EventKanban = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // New task form state
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', status: 'todo' });
 
@@ -26,20 +24,18 @@ const EventKanban = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Verify authorization
       const { data: eventData, error: eventError } = await supabase
         .from('events')
         .select('id, name, chapter_id, created_by, co_hosts')
         .eq('id', eventId)
         .single();
-        
+
       if (eventError) throw eventError;
       setEvent(eventData);
-      
+
       const isCreator = eventData.created_by === user.id;
       const isCoHost = (eventData.co_hosts || []).includes(user.id);
-      
+
       let isChapterLeader = false;
       const { data: leaderMember } = await supabase
         .from('club_members')
@@ -55,25 +51,22 @@ const EventKanban = () => {
       if (!isCreator && !isCoHost && !isChapterLeader) {
         throw new Error('Access Denied: You do not have permission to view tasks for this event.');
       }
-
-      // Fetch tasks
       const { data: tasksData, error: tasksError } = await supabase
         .from('event_tasks')
         .select('*')
         .eq('event_id', eventId)
         .order('created_at', { ascending: false });
 
-      if (tasksError && tasksError.code !== '42P01') { 
-         // 42P01 is relation does not exist, in case user hasn't run the SQL yet
-         throw tasksError;
+      if (tasksError && tasksError.code !== '42P01') {
+        throw tasksError;
       }
-      
+
       setTasks(tasksData || []);
     } catch (err) {
       if (err.code === '42P01') {
-         setError('The tasks table has not been created yet in the database. Please run the provided SQL in your Supabase SQL editor.');
+        setError('The tasks table has not been created yet in the database. Please run the provided SQL in your Supabase SQL editor.');
       } else {
-         setError(err.message || 'Failed to load Kanban board');
+        setError(err.message || 'Failed to load Kanban board');
       }
     } finally {
       setLoading(false);
@@ -118,29 +111,26 @@ const EventKanban = () => {
 
   const updateTaskStatus = async (taskId, newStatus) => {
     try {
-      // Optimistic update
       setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
-      
+
       const { error } = await supabase
         .from('event_tasks')
         .update({ status: newStatus, updated_at: new Date() })
         .eq('id', taskId);
-        
+
       if (error) throw error;
     } catch (err) {
       alert('Failed to update task status: ' + err.message);
-      // Revert on error
       fetchData();
     }
   };
 
-  // Drag and Drop Handlers
   const handleDragStart = (e, taskId) => {
     e.dataTransfer.setData('taskId', taskId);
   };
 
   const handleDragOver = (e) => {
-    e.preventDefault(); // Necessary to allow dropping
+    e.preventDefault();
   };
 
   const handleDrop = (e, status) => {
@@ -153,11 +143,11 @@ const EventKanban = () => {
 
   const renderColumn = (status, title, accentColor) => {
     const columnTasks = tasks.filter(t => t.status === status);
-    
+
     return (
-      <div 
-        style={{ 
-          flex: 1, 
+      <div
+        style={{
+          flex: 1,
           minWidth: '280px',
           backgroundColor: 'var(--input-bg)',
           borderRadius: '0.75rem',
@@ -171,20 +161,20 @@ const EventKanban = () => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{title}</h3>
-          <span style={{ 
-            backgroundColor: 'var(--bg-secondary)', 
-            padding: '0.2rem 0.5rem', 
-            borderRadius: '1rem', 
+          <span style={{
+            backgroundColor: 'var(--bg-secondary)',
+            padding: '0.2rem 0.5rem',
+            borderRadius: '1rem',
             fontSize: '0.8rem',
             color: 'var(--text-secondary)'
           }}>
             {columnTasks.length}
           </span>
         </div>
-        
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, minHeight: '100px' }}>
           {columnTasks.map(task => (
-            <motion.div 
+            <motion.div
               key={task.id}
               draggable
               onDragStart={(e) => handleDragStart(e, task.id)}
@@ -204,8 +194,8 @@ const EventKanban = () => {
                   {task.description}
                 </p>
               )}
-              
-              <button 
+
+              <button
                 onClick={() => handleDeleteTask(task.id)}
                 style={{
                   position: 'absolute',
@@ -229,9 +219,9 @@ const EventKanban = () => {
             </div>
           )}
         </div>
-        
-        <button 
-          className="btn btn-ghost" 
+
+        <button
+          className="btn btn-ghost"
           style={{ width: '100%', marginTop: '1rem', fontSize: '0.85rem', border: '1px dashed var(--input-border)' }}
           onClick={() => {
             setNewTask({ title: '', description: '', status });
@@ -262,9 +252,9 @@ const EventKanban = () => {
 
   return (
     <div className="container" style={{ padding: '2rem 0', maxWidth: '1200px' }}>
-      <button 
-        className="btn btn-outline" 
-        style={{ marginBottom: '1.5rem', padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} 
+      <button
+        className="btn btn-outline"
+        style={{ marginBottom: '1.5rem', padding: '0.25rem 0.75rem', fontSize: '0.875rem' }}
         onClick={() => navigate(`/event/${eventId}`)}
       >
         <ArrowLeft size={16} style={{ marginRight: '0.5rem' }} /> Back to Event
@@ -297,19 +287,19 @@ const EventKanban = () => {
             <form onSubmit={handleCreateTask}>
               <div className="form-group">
                 <label className="form-label">Task Title <span style={{ color: 'var(--danger-color)' }}>*</span></label>
-                <input 
-                  type="text" 
-                  className="form-control" 
+                <input
+                  type="text"
+                  className="form-control"
                   value={newTask.title}
                   onChange={e => setNewTask({ ...newTask, title: e.target.value })}
-                  required 
+                  required
                   autoFocus
                 />
               </div>
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>
-                <textarea 
-                  className="form-control" 
+                <textarea
+                  className="form-control"
                   rows="3"
                   value={newTask.description}
                   onChange={e => setNewTask({ ...newTask, description: e.target.value })}
