@@ -24,6 +24,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SuperAdminPage from './pages/SuperAdminPage';
 import EventKanban from './pages/EventKanban';
 import ClubKanban from './pages/ClubKanban';
+import ClubTaskDetails from './pages/ClubTaskDetails';
 
 import ClubsDetailsPage from './pages/ClubsDetailsPage';
 import FundingPage from './pages/FundingPage';
@@ -83,6 +84,11 @@ const AnimatedRoutes = () => {
         <Route path="/club-kanban/:chapterId" element={
           <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
             <ClubKanban />
+          </ProtectedRoute>
+        } />
+        <Route path="/club-task/:taskId" element={
+          <ProtectedRoute allowedRoles={['student', 'faculty', 'super_admin']}>
+            <ClubTaskDetails />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={

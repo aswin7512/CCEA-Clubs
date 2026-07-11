@@ -241,3 +241,33 @@ CREATE TABLE public.club_tasks (
 
 ALTER TABLE public.club_tasks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations for authenticated users on club_tasks" ON public.club_tasks FOR ALL USING (auth.role() = 'authenticated');
+
+-- 16. Create Club Member Tasks table
+CREATE TABLE public.club_member_tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chapter_id UUID REFERENCES public.club_chapters(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  task_link TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.club_member_tasks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all operations for authenticated users on club_member_tasks" ON public.club_member_tasks FOR ALL USING (auth.role() = 'authenticated');
+
+-- 17. Create Club Task Completions table
+CREATE TABLE public.club_task_completions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID REFERENCES public.club_member_tasks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  is_visited BOOLEAN NOT NULL DEFAULT false,
+  is_completed BOOLEAN NOT NULL DEFAULT false,
+  feedback TEXT,
+  visited_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(task_id, user_id)
+);
+
+ALTER TABLE public.club_task_completions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all operations for authenticated users on club_task_completions" ON public.club_task_completions FOR ALL USING (auth.role() = 'authenticated');

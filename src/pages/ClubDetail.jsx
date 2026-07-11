@@ -2,6 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { Plus, Trash2, Edit3, CheckCircle, ExternalLink, Users, FileText } from 'lucide-react';
+import PublicProfileModal from '../components/PublicProfileModal';
+
+const parseTaskLinks = (taskLinkStr) => {
+  if (!taskLinkStr) return [];
+  try {
+    const parsed = JSON.parse(taskLinkStr);
+    if (Array.isArray(parsed)) return parsed;
+    return [{ url: taskLinkStr, label: 'Task Link' }];
+  } catch (e) {
+    return [{ url: taskLinkStr, label: 'Task Link' }];
+  }
+};
 
 const ClubDetail = () => {
   const { chapterId } = useParams();
@@ -14,8 +27,19 @@ const ClubDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Tab State: 'events' | 'members' | 'requests'
+  // Tab State: 'events' | 'members' | 'requests' | 'tasks'
   const [activeTab, setActiveTab] = useState('events');
+
+  // Task state
+  const [tasks, setTasks] = useState([]);
+  const [completions, setCompletions] = useState([]);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', task_links: [{ url: '', label: '' }] });
+  const [feedbackText, setFeedbackText] = useState('');
+  const [completingTaskId, setCompletingTaskId] = useState(null);
+  const [submittingTask, setSubmittingTask] = useState(false);
 
   // Member editing state
   const [editingMember, setEditingMember] = useState(null);
@@ -31,6 +55,15 @@ const ClubDetail = () => {
   const [loadingFaculty, setLoadingFaculty] = useState(false);
   const [submittingFaculty, setSubmittingFaculty] = useState(false);
 
+  // Public student profile state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedProfileData, setSelectedProfileData] = useState(null);
+
+  const openPublicProfile = (profile) => {
+    setSelectedProfileData(profile);
+    setShowProfileModal(true);
+  };
+
   useEffect(() => {
     fetchClubData();
   }, [chapterId, user]);
@@ -43,7 +76,7 @@ const ClubDetail = () => {
       // 1. Fetch Chapter Info
       const { data: chapterData, error: chapterError } = await supabase
         .from('club_chapters')
-        .select('*, lead:campus_lead_id(name, email, department, roll_number)')
+        .select('*, lead:campus_lead_id(*)')
         .eq('id', chapterId)
         .single();
 
@@ -53,7 +86,7 @@ const ClubDetail = () => {
       // 2. Fetch all members / applications for this club
       const { data: membersData, error: membersError } = await supabase
         .from('club_members')
-        .select('*, profiles:user_id(name, email, department, roll_number)')
+        .select('*, profiles:user_id(*)')
         .eq('chapter_id', chapterId);
 
       if (membersError) throw membersError;
@@ -69,6 +102,55 @@ const ClubDetail = () => {
       if (eventsError) throw eventsError;
       setEvents(eventsData || []);
 
+      // 4. Fetch club tasks (club_member_tasks)
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('club_member_tasks')
+        .select('*')
+        .eq('chapter_id', chapterId)
+        .order('created_at', { ascending: false });
+
+      if (tasksError) {
+        if (tasksError.code !== '42P01') throw tasksError;
+        setTasks([]);
+        setCompletions([]);
+      } else {
+        setTasks(tasksData || []);
+        
+        // 5. Fetch completions
+        if (tasksData && tasksData.length > 0) {
+          const taskIds = tasksData.map(t => t.id);
+          
+          const inlineIsCampusLead = chapterData.campus_lead_id === user?.id;
+          const userMem = (membersData || []).find(m => m.user_id === user?.id);
+          const inlineIsLeader = (profile?.role === 'super_admin') || inlineIsCampusLead || (userMem?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(userMem?.role));
+          
+          if (inlineIsLeader) {
+            // Fetch all completions for these tasks
+            const { data: compData, error: compError } = await supabase
+              .from('club_task_completions')
+              .select('*, profiles:user_id(*)')
+              .in('task_id', taskIds);
+            
+            if (compError) throw compError;
+            setCompletions(compData || []);
+          } else if (user?.id) {
+            // Fetch only current user's completions
+            const { data: compData, error: compError } = await supabase
+              .from('club_task_completions')
+              .select('*')
+              .eq('user_id', user.id)
+              .in('task_id', taskIds);
+            
+            if (compError) throw compError;
+            setCompletions(compData || []);
+          } else {
+            setCompletions([]);
+          }
+        } else {
+          setCompletions([]);
+        }
+      }
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load club details');
@@ -82,9 +164,163 @@ const ClubDetail = () => {
   const isCampusLead = chapter?.campus_lead_id === user?.id;
   const isFaculty = profile?.role === 'faculty' || profile?.role === 'super_admin';
   const isApprovedMember = isCampusLead || myMembership?.status === 'approved' || isFaculty;
-  const isSuperAdmin = false;
+  const isSuperAdmin = profile?.role === 'super_admin';
   const isLeader = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
   const canManageRoles = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
+  const canManageTasks = isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
+
+  const handleSaveTask = async (e) => {
+    e.preventDefault();
+    if (!taskForm.title.trim()) return;
+
+    try {
+      setSubmittingTask(true);
+      const links = (taskForm.task_links || []).filter(l => l.url.trim() !== '');
+      const taskLinkVal = links.length > 0 ? JSON.stringify(links) : null;
+
+      if (editingTask) {
+        // Update task
+        const { error } = await supabase
+          .from('club_member_tasks')
+          .update({
+            title: taskForm.title.trim(),
+            description: taskForm.description?.trim() || null,
+            task_link: taskLinkVal,
+            updated_at: new Date()
+          })
+          .eq('id', editingTask.id);
+
+        if (error) throw error;
+        alert('Task updated successfully!');
+      } else {
+        // Create task
+        const { error } = await supabase
+          .from('club_member_tasks')
+          .insert({
+            chapter_id: chapterId,
+            title: taskForm.title.trim(),
+            description: taskForm.description?.trim() || null,
+            task_link: taskLinkVal
+          });
+
+        if (error) throw error;
+        alert('Task created successfully!');
+      }
+
+      setShowTaskModal(false);
+      setEditingTask(null);
+      setTaskForm({ title: '', description: '', task_links: [{ url: '', label: '' }] });
+      await fetchClubData();
+    } catch (err) {
+      alert('Failed to save task: ' + err.message);
+    } finally {
+      setSubmittingTask(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm("Are you sure you want to delete this task? This will also delete all completion feedback from members.")) return;
+    try {
+      const { error } = await supabase
+        .from('club_member_tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+      alert('Task deleted successfully!');
+      await fetchClubData();
+    } catch (err) {
+      alert('Failed to delete task: ' + err.message);
+    }
+  };
+
+  const handleVisitTask = async (taskId, taskLink) => {
+    try {
+      const existingComp = completions.find(c => c.task_id === taskId && c.user_id === user?.id);
+
+      if (!existingComp) {
+        // Create completion record with is_visited = true
+        const { error } = await supabase
+          .from('club_task_completions')
+          .insert({
+            task_id: taskId,
+            user_id: user?.id,
+            is_visited: true,
+            visited_at: new Date()
+          });
+        if (error) throw error;
+      } else if (!existingComp.is_visited) {
+        // Update existing record to set is_visited = true
+        const { error } = await supabase
+          .from('club_task_completions')
+          .update({
+            is_visited: true,
+            visited_at: new Date()
+          })
+          .eq('id', existingComp.id);
+        if (error) throw error;
+      }
+
+      // Refresh data
+      await fetchClubData();
+
+      // Open link in a new tab
+      if (taskLink) {
+        const url = taskLink.startsWith('http://') || taskLink.startsWith('https://')
+          ? taskLink
+          : `https://${taskLink}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      console.error('Error tracking task visit:', err.message);
+    }
+  };
+
+  const handleCompleteTaskSubmit = async (e) => {
+    e.preventDefault();
+    if (!completingTaskId) return;
+
+    try {
+      setSubmittingTask(true);
+      const existingComp = completions.find(c => c.task_id === completingTaskId && c.user_id === user?.id);
+
+      if (existingComp) {
+        const { error } = await supabase
+          .from('club_task_completions')
+          .update({
+            is_completed: true,
+            feedback: feedbackText?.trim() || null,
+            completed_at: new Date()
+          })
+          .eq('id', existingComp.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('club_task_completions')
+          .insert({
+            task_id: completingTaskId,
+            user_id: user?.id,
+            is_visited: true,
+            is_completed: true,
+            feedback: feedbackText?.trim() || null,
+            completed_at: new Date()
+          });
+
+        if (error) throw error;
+      }
+
+      alert('Task marked as completed!');
+      setShowFeedbackModal(false);
+      setCompletingTaskId(null);
+      setFeedbackText('');
+      await fetchClubData();
+    } catch (err) {
+      alert('Failed to complete task: ' + err.message);
+    } finally {
+      setSubmittingTask(false);
+    }
+  };
 
   const handleApply = async () => {
     try {
@@ -405,7 +641,7 @@ const ClubDetail = () => {
       )}
 
       {/* Tabs Menu */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--input-border)', marginBottom: '2rem', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--input-border)', marginBottom: '2rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button 
           className={`btn ${activeTab === 'events' ? 'btn-primary' : 'btn-outline'}`}
           style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottom: activeTab === 'events' ? '2px solid var(--primary-color)' : 'none' }}
@@ -420,6 +656,15 @@ const ClubDetail = () => {
         >
           Members ({studentMembers.length})
         </button>
+        {isApprovedMember && (
+          <button 
+            className={`btn ${activeTab === 'tasks' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottom: activeTab === 'tasks' ? '2px solid var(--primary-color)' : 'none' }}
+            onClick={() => setActiveTab('tasks')}
+          >
+            Tasks ({tasks.length})
+          </button>
+        )}
         {isLeader && (
           <button 
             className={`btn ${activeTab === 'requests' ? 'btn-primary' : 'btn-outline'}`}
@@ -580,7 +825,16 @@ const ClubDetail = () => {
                   <tbody>
                     {facultyCoordinators.map(m => (
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <span 
+                            onClick={() => openPublicProfile(m.profiles)}
+                            style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                          >
+                            {m.profiles?.name || 'N/A'}
+                          </span>
+                        </td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>
@@ -648,7 +902,16 @@ const ClubDetail = () => {
                         <tbody>
                           {coreTeamMembers.map(m => (
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>
+                                <span 
+                                  onClick={() => openPublicProfile(m.profiles)}
+                                  style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                                >
+                                  {m.profiles?.name || 'N/A'}
+                                </span>
+                              </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
@@ -710,7 +973,16 @@ const ClubDetail = () => {
                         <tbody>
                           {volunteerTeamMembers.map(m => (
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>
+                                <span 
+                                  onClick={() => openPublicProfile(m.profiles)}
+                                  style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                                >
+                                  {m.profiles?.name || 'N/A'}
+                                </span>
+                              </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
@@ -772,7 +1044,16 @@ const ClubDetail = () => {
                         <tbody>
                           {generalMembers.map(m => (
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                              <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>
+                                <span 
+                                  onClick={() => openPublicProfile(m.profiles)}
+                                  style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                                >
+                                  {m.profiles?.name || 'N/A'}
+                                </span>
+                              </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
@@ -1089,7 +1370,16 @@ const ClubDetail = () => {
                   <tbody>
                     {pendingRequests.map(m => (
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                         <span 
+                           onClick={() => openPublicProfile(m.profiles)}
+                           style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                         >
+                           {m.profiles?.name || 'N/A'}
+                         </span>
+                       </td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
@@ -1139,7 +1429,16 @@ const ClubDetail = () => {
                   <tbody>
                     {rejectedRequests.map(m => (
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <td style={{ padding: '0.75rem' }}>{m.profiles?.name || 'N/A'}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                         <span 
+                           onClick={() => openPublicProfile(m.profiles)}
+                           style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
+                           onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                           onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                         >
+                           {m.profiles?.name || 'N/A'}
+                         </span>
+                       </td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
@@ -1161,6 +1460,591 @@ const ClubDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Tab Contents: Tasks */}
+      {activeTab === 'tasks' && isApprovedMember && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div className="glass-panel" style={{ padding: '2rem', position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.65rem', color: 'var(--primary-color)' }}>
+                  <FileText size={24} /> Club Tasks
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.35rem' }}>
+                  Broadcast tasks assigned to all club members.
+                </p>
+              </div>
+               {canManageTasks && (
+                <button 
+                  className="btn btn-primary animate-hover" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem' }}
+                  onClick={() => {
+                    setEditingTask(null);
+                    setTaskForm({ title: '', description: '', task_links: [{ url: '', label: '' }] });
+                    setShowTaskModal(true);
+                  }}
+                >
+                  <Plus size={16} /> Add Task
+                </button>
+              )}
+            </div>
+
+            {tasks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-secondary)' }}>
+                <p style={{ fontSize: '1.05rem', fontStyle: 'italic' }}>No tasks posted for this club yet.</p>
+              </div>
+            ) : (
+              (() => {
+                const isCompletedByUser = (taskId) => completions.some(c => c.task_id === taskId && c.user_id === user?.id && c.is_completed);
+                const activeTasks = tasks.filter(t => !isCompletedByUser(t.id));
+                const completedTasks = tasks.filter(t => isCompletedByUser(t.id));
+
+                return (
+                  <div style={{ display: 'flex', gap: '2.5rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+                    {/* Active Tasks Column */}
+                    <div style={{ flex: 1, minWidth: '300px' }}>
+                      <h3 style={{ 
+                        fontSize: '1.15rem', 
+                        fontWeight: 600,
+                        marginBottom: '1.5rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        paddingBottom: '0.75rem',
+                        color: 'var(--text-color)'
+                      }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary-color)' }}></span>
+                        Active Tasks ({activeTasks.length})
+                      </h3>
+                      {activeTasks.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem 0' }}>No active tasks.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          {activeTasks.map(task => {
+                            const myComp = completions.find(c => c.task_id === task.id && c.user_id === user?.id);
+                            const hasVisited = myComp?.is_visited;
+                            const parsedLinks = parseTaskLinks(task.task_link);
+                            const isVisitRequiredAndNotDone = parsedLinks.length > 0 && !hasVisited;
+                            const taskComps = completions.filter(c => c.task_id === task.id);
+                            const completedCount = taskComps.filter(c => c.is_completed).length;
+
+                            return (
+                              <div key={task.id} className="glass-panel" style={{ padding: '1.5rem', borderLeft: '3px solid var(--primary-color)', background: 'rgba(255,255,255,0.02)', position: 'relative' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                  <h4 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-color)' }}>{task.title}</h4>
+                                  {canManageTasks && (
+                                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                      <button 
+                                        className="btn btn-outline" 
+                                        style={{ padding: '0.35rem', border: 'none', background: 'transparent' }}
+                                        onClick={() => {
+                                          setEditingTask(task);
+                                          let parsedLinks = [{ url: '', label: '' }];
+                                          if (task.task_link) {
+                                            try {
+                                              const parsed = JSON.parse(task.task_link);
+                                              if (Array.isArray(parsed)) {
+                                                parsedLinks = parsed;
+                                              } else {
+                                                parsedLinks = [{ url: task.task_link, label: 'Task Link' }];
+                                              }
+                                            } catch (e) {
+                                              parsedLinks = [{ url: task.task_link, label: 'Task Link' }];
+                                            }
+                                          }
+                                          setTaskForm({ 
+                                            title: task.title, 
+                                            description: task.description || '', 
+                                            task_links: parsedLinks 
+                                          });
+                                          setShowTaskModal(true);
+                                        }}
+                                        title="Edit Task"
+                                      >
+                                        <Edit3 size={14} />
+                                      </button>
+                                      <button 
+                                        className="btn btn-outline" 
+                                        style={{ padding: '0.35rem', border: 'none', background: 'transparent', color: 'var(--danger-color)' }}
+                                        onClick={() => handleDeleteTask(task.id)}
+                                        title="Delete Task"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                {task.description && (
+                                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                                    {task.description}
+                                  </p>
+                                )}
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                  {(() => {
+                                    if (parsedLinks.length === 1) {
+                                      const firstLink = parsedLinks[0];
+                                      return (
+                                        <>
+                                          <button 
+                                            className="btn btn-outline animate-hover" 
+                                            style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', height: 'auto' }}
+                                            onClick={() => {
+                                              const url = firstLink.url.startsWith('http://') || firstLink.url.startsWith('https://')
+                                                ? firstLink.url
+                                                : `https://${firstLink.url}`;
+                                              window.open(url, '_blank', 'noopener,noreferrer');
+                                              handleVisitTask(task.id, task.task_link);
+                                            }}
+                                          >
+                                            Go to Link <ExternalLink size={12} />
+                                          </button>
+                                          {profile?.role === 'student' && (
+                                            <span style={{ 
+                                              fontSize: '0.75rem', 
+                                              color: hasVisited ? '#10b981' : 'var(--text-secondary)',
+                                              fontWeight: 500
+                                            }}>
+                                              {hasVisited ? '✓ Link Visited' : '○ Link Not Visited'}
+                                            </span>
+                                          )}
+                                        </>
+                                      );
+                                    } else if (parsedLinks.length > 1) {
+                                      return (
+                                        <span style={{ 
+                                          fontSize: '0.75rem', 
+                                          color: hasVisited ? '#10b981' : 'var(--text-secondary)',
+                                          fontWeight: 500,
+                                          backgroundColor: 'rgba(255,255,255,0.03)',
+                                          padding: '0.35rem 0.6rem',
+                                          borderRadius: '0.25rem',
+                                          border: '1px solid rgba(255,255,255,0.05)'
+                                        }}>
+                                          {hasVisited ? '✓ All Links Visited' : `○ ${parsedLinks.length} Links to Visit`}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
+                                  {profile?.role === 'student' && (
+                                    <button 
+                                      className="btn btn-primary animate-hover"
+                                      style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', marginLeft: 'auto', height: 'auto' }}
+                                      disabled={isVisitRequiredAndNotDone}
+                                      onClick={() => {
+                                        setCompletingTaskId(task.id);
+                                        setShowFeedbackModal(true);
+                                      }}
+                                      title={isVisitRequiredAndNotDone ? "Please visit the task link first" : ""}
+                                    >
+                                      Mark Completed
+                                    </button>
+                                  )}
+
+                                  <button 
+                                    className="btn btn-secondary animate-hover" 
+                                    style={{ 
+                                      fontSize: '0.75rem', 
+                                      padding: '0.4rem 0.8rem', 
+                                      display: 'flex', 
+                                      alignItems: 'center', 
+                                      gap: '0.35rem', 
+                                      height: 'auto',
+                                      marginLeft: profile?.role === 'student' ? '0' : 'auto'
+                                    }}
+                                    onClick={() => navigate(`/club-task/${task.id}`)}
+                                  >
+                                    Task Details
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Completed Tasks Column */}
+                    <div style={{ flex: 1, minWidth: '300px' }}>
+                      <h3 style={{ 
+                        fontSize: '1.15rem', 
+                        fontWeight: 600,
+                        marginBottom: '1.5rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        paddingBottom: '0.75rem',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+                        Completed Tasks ({completedTasks.length})
+                      </h3>
+                      {completedTasks.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem 0' }}>No completed tasks.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                          {completedTasks.map(task => {
+                            const myComp = completions.find(c => c.task_id === task.id && c.user_id === user?.id);
+                            const taskComps = completions.filter(c => c.task_id === task.id);
+                            const completedCount = taskComps.filter(c => c.is_completed).length;
+
+                            return (
+                              <div key={task.id} className="glass-panel" style={{ padding: '1.5rem', borderLeft: '3px solid #10b981', background: 'rgba(255,255,255,0.01)', opacity: 0.8 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                  <h4 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{task.title}</h4>
+                                  <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', fontWeight: 600 }}>
+                                    <CheckCircle size={14} /> Completed
+                                  </span>
+                                </div>
+                                {task.description && (
+                                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                                    {task.description}
+                                  </p>
+                                )}
+
+                                {myComp?.feedback && (
+                                  <div style={{ 
+                                    marginTop: '0.75rem', 
+                                    padding: '0.75rem', 
+                                    backgroundColor: 'rgba(255,255,255,0.02)', 
+                                    borderRadius: '0.35rem',
+                                    fontSize: '0.85rem',
+                                    borderLeft: '2px solid #10b981',
+                                    color: 'var(--text-secondary)'
+                                  }}>
+                                    <strong>My Feedback:</strong> {myComp.feedback}
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                  {(() => {
+                                    const parsedLinks = parseTaskLinks(task.task_link);
+                                    if (parsedLinks.length === 1) {
+                                      const firstLink = parsedLinks[0];
+                                      return (
+                                        <button 
+                                          className="btn btn-outline" 
+                                          style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', height: 'auto', opacity: 0.6 }}
+                                          onClick={() => {
+                                            const url = firstLink.url.startsWith('http://') || firstLink.url.startsWith('https://')
+                                              ? firstLink.url
+                                              : `https://${firstLink.url}`;
+                                            window.open(url, '_blank', 'noopener,noreferrer');
+                                          }}
+                                        >
+                                          Go to Link <ExternalLink size={12} />
+                                        </button>
+                                      );
+                                    } else if (parsedLinks.length > 1) {
+                                      return (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                          {parsedLinks.length} Links
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
+                                  <button 
+                                    className="btn btn-secondary animate-hover" 
+                                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', height: 'auto', marginLeft: 'auto' }}
+                                    onClick={() => navigate(`/club-task/${task.id}`)}
+                                  >
+                                    Task Details
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Task Creation/Editing Modal */}
+      {showTaskModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <form onSubmit={handleSaveTask} className="glass-panel" style={{
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            padding: '2rem',
+            position: 'relative',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)'
+          }}>
+            <button 
+              type="button"
+              onClick={() => setShowTaskModal(false)}
+              style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-color)',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                opacity: 0.7
+              }}
+            >
+              &times;
+            </button>
+            <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--input-border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
+              {editingTask ? 'Edit Club Task' : 'Add Club Task'}
+            </h3>
+
+            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+              <label className="form-label">Task Title *</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                required
+                placeholder="Enter task title"
+                value={taskForm.title}
+                onChange={e => setTaskForm({ ...taskForm, title: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+              <label className="form-label">Description</label>
+              <textarea 
+                className="form-control" 
+                rows={4}
+                placeholder="Enter task description"
+                value={taskForm.description}
+                onChange={e => setTaskForm({ ...taskForm, description: e.target.value })}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>Task Links</label>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary animate-hover" 
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: 'auto' }}
+                  onClick={() => {
+                    setTaskForm(prev => ({
+                      ...prev,
+                      task_links: [...(prev.task_links || []), { url: '', label: '' }]
+                    }));
+                  }}
+                >
+                  + Add Link
+                </button>
+              </div>
+
+              {(taskForm.task_links || []).map((link, idx) => (
+                <div key={idx} style={{ 
+                  display: 'flex', 
+                  gap: '0.5rem', 
+                  marginBottom: '0.75rem',
+                  alignItems: 'center',
+                  padding: '0.75rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  borderRadius: '0.375rem',
+                  border: '1px solid rgba(255, 255, 255, 0.05)'
+                }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      style={{ padding: '0.35rem 0.6rem', fontSize: '0.85rem' }}
+                      placeholder="Link Label (e.g. Feedback Form)"
+                      value={link.label}
+                      onChange={e => {
+                        const newLinks = [...taskForm.task_links];
+                        newLinks[idx].label = e.target.value;
+                        setTaskForm({ ...taskForm, task_links: newLinks });
+                      }}
+                    />
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      style={{ padding: '0.35rem 0.6rem', fontSize: '0.85rem' }}
+                      placeholder="URL (e.g. google.com or forms.gle)"
+                      value={link.url}
+                      onChange={e => {
+                        const newLinks = [...taskForm.task_links];
+                        newLinks[idx].url = e.target.value;
+                        setTaskForm({ ...taskForm, task_links: newLinks });
+                      }}
+                    />
+                  </div>
+                  {taskForm.task_links.length > 1 && (
+                    <button
+                      type="button"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--danger-color)',
+                        cursor: 'pointer',
+                        padding: '0.25rem',
+                        fontSize: '1.25rem',
+                        opacity: 0.8
+                      }}
+                      onClick={() => {
+                        const newLinks = taskForm.task_links.filter((_, i) => i !== idx);
+                        setTaskForm({ ...taskForm, task_links: newLinks });
+                      }}
+                      title="Remove Link"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              ))}
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem' }}>
+                Optional. Members must visit all provided links before they can submit completion.
+              </small>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ flex: 1 }} 
+                onClick={() => setShowTaskModal(false)}
+                disabled={submittingTask}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                style={{ flex: 1 }}
+                disabled={submittingTask}
+              >
+                {submittingTask ? 'Saving...' : 'Save Task'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Task Completion/Feedback Modal */}
+      {showFeedbackModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <form onSubmit={handleCompleteTaskSubmit} className="glass-panel" style={{
+            maxWidth: '450px',
+            width: '100%',
+            padding: '2rem',
+            position: 'relative',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)'
+          }}>
+            <button 
+              type="button"
+              onClick={() => {
+                setShowFeedbackModal(false);
+                setCompletingTaskId(null);
+                setFeedbackText('');
+              }}
+              style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-color)',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                opacity: 0.7
+              }}
+            >
+              &times;
+            </button>
+            <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--input-border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', color: 'var(--primary-color)' }}>
+              Complete Task
+            </h3>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label">Task Feedback (Optional)</label>
+              <textarea 
+                className="form-control" 
+                rows={4}
+                placeholder="Enter feedback or notes about your completion"
+                value={feedbackText}
+                onChange={e => setFeedbackText(e.target.value)}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ flex: 1 }} 
+                onClick={() => {
+                  setShowFeedbackModal(false);
+                  setCompletingTaskId(null);
+                  setFeedbackText('');
+                }}
+                disabled={submittingTask}
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                style={{ flex: 1 }}
+                disabled={submittingTask}
+              >
+                {submittingTask ? 'Submitting...' : 'Mark Completed'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Public Profile Modal */}
+      <PublicProfileModal
+        isOpen={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setSelectedProfileData(null);
+        }}
+        profileData={selectedProfileData}
+      />
     </div>
   );
 };
