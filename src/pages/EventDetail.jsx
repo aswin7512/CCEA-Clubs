@@ -24,6 +24,7 @@ const EventDetail = () => {
   const [formData, setFormData] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [allRegistrations, setAllRegistrations] = useState([]);
+  const [isClubMember, setIsClubMember] = useState(false);
   const [isHostOrLeader, setIsHostOrLeader] = useState(false);
 
   useEffect(() => {
@@ -47,21 +48,29 @@ const EventDetail = () => {
       // Check if user is host or leader
       const isCreator = eventData.created_by === user?.id;
       const isCoHost = (eventData.co_hosts || []).includes(user?.id);
-      const isSuperAdmin = false;
+      const isSuperAdmin = profile?.role === 'super_admin';
 
       let isChapterLeader = false;
+      let memberShipApproved = false;
+
       if (user) {
-        const { data: leaderMember, error: leaderError } = await supabase
+        // Query membership to check both leader status and standard membership approval
+        const { data: memberData } = await supabase
           .from('club_members')
           .select('role, status')
           .eq('chapter_id', eventData.chapter_id)
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (!leaderError && leaderMember?.status === 'approved' && ['core_team', 'lead', 'faculty_coordinator'].includes(leaderMember?.role)) {
-          isChapterLeader = true;
+        if (memberData && memberData.status === 'approved') {
+          memberShipApproved = true;
+          if (['core_team', 'lead', 'faculty_coordinator'].includes(memberData.role)) {
+            isChapterLeader = true;
+          }
         }
       }
+
+      setIsClubMember(memberShipApproved);
 
       const isAuthorized = isCreator || isCoHost || isSuperAdmin || isChapterLeader;
       setIsHostOrLeader(isAuthorized);
@@ -346,7 +355,7 @@ const EventDetail = () => {
           </motion.div>
         )}
 
-        {profile?.role !== 'faculty' && profile?.role !== 'super_admin' && (
+        {profile?.role !== 'faculty' && (profile?.role !== 'super_admin' || isClubMember) && (
           !hasApplied ? (
             isEventOver(event) ? (
               <motion.div
