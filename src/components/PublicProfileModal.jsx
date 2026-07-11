@@ -14,7 +14,7 @@ import {
   Calendar
 } from 'lucide-react';
 
-const PublicProfileModal = ({ isOpen, onClose, userId, profileData }) => {
+const PublicProfileModal = ({ isOpen, onClose, userId, profileData, additionalFields = [] }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -225,6 +225,28 @@ const PublicProfileModal = ({ isOpen, onClose, userId, profileData }) => {
                       <span style={{ fontSize: '0.95rem', color: 'var(--text-color)' }}>{profile.prp_code || 'N/A'}</span>
                     </div>
                   </div>
+
+                  {/* Additional Custom Fields */}
+                  {additionalFields && additionalFields.map((field, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <Award size={18} style={{ color: 'var(--secondary-color)', marginTop: '0.25rem' }} />
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>{field.label}</span>
+                        {field.value && field.value.startsWith('http') ? (
+                          <a 
+                            href={field.value} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.95rem', color: 'var(--primary-color)', textDecoration: 'underline', wordBreak: 'break-all' }}
+                          >
+                            {field.value}
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: '0.95rem', color: 'var(--text-color)', wordBreak: 'break-all' }}>{field.value || 'N/A'}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
 
                   {/* Account Created At */}
                   {profile.created_at && (

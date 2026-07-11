@@ -126,6 +126,27 @@ const StudentDashboard = () => {
   };
 
   const handleApply = async (chapterId) => {
+    // Check if the chapter requires custom applicant details
+    const chapter = activeChapters.find(c => c.id === chapterId);
+    
+    const parseLabels = (labelStr) => {
+      if (!labelStr) return [];
+      try {
+        const parsed = JSON.parse(labelStr);
+        if (Array.isArray(parsed)) return parsed;
+        return [labelStr];
+      } catch (e) {
+        return [labelStr];
+      }
+    };
+    
+    const labels = parseLabels(chapter?.additional_field_label);
+    if (labels.length > 0) {
+      // Redirect to the Club Detail page with an auto-apply flag so they get prompted
+      navigate(`/club/${chapterId}`, { state: { autoApply: true } });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('club_members')

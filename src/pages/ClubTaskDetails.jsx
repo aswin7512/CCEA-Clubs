@@ -52,9 +52,48 @@ const ClubTaskDetails = () => {
   // Public student profile state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileData, setSelectedProfileData] = useState(null);
+  const [selectedAdditionalFields, setSelectedAdditionalFields] = useState([]);
 
-  const openPublicProfile = (profile) => {
+  const parseLabels = (labelStr) => {
+    if (!labelStr) return [];
+    try {
+      const parsed = JSON.parse(labelStr);
+      if (Array.isArray(parsed)) return parsed;
+      return [labelStr];
+    } catch (e) {
+      return [labelStr];
+    }
+  };
+
+  const parseValues = (valueStr, labels) => {
+    if (!valueStr) return {};
+    try {
+      const parsed = JSON.parse(valueStr);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (e) {
+      // ignore
+    }
+    const result = {};
+    if (labels && labels.length > 0) {
+      result[labels[0]] = valueStr;
+    }
+    return result;
+  };
+
+  const getAdditionalFieldsList = (labelStr, valueStr) => {
+    const labels = parseLabels(labelStr);
+    const values = parseValues(valueStr, labels);
+    return labels.map(label => ({
+      label,
+      value: values[label] || ''
+    }));
+  };
+
+  const openPublicProfile = (profile, labelStr = '', valueStr = '') => {
     setSelectedProfileData(profile);
+    setSelectedAdditionalFields(getAdditionalFieldsList(labelStr, valueStr));
     setShowProfileModal(true);
   };
 
@@ -93,7 +132,7 @@ const ClubTaskDetails = () => {
       // 2. Fetch Chapter details
       const { data: chapterData, error: chapterError } = await supabase
         .from('club_chapters')
-        .select('name, id')
+        .select('name, id, additional_field_label')
         .eq('id', taskData.chapter_id)
         .single();
 
@@ -551,7 +590,7 @@ const ClubTaskDetails = () => {
                           <td style={{ padding: '0.75rem' }}>
                             <div style={{ fontWeight: 'bold' }}>
                               <span 
-                                onClick={() => openPublicProfile(student.profiles)}
+                                onClick={() => openPublicProfile(student.profiles, chapter?.additional_field_label, student.additional_field_value)}
                                 style={{ cursor: 'pointer', color: 'var(--primary-color)' }}
                                 onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                                 onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -606,8 +645,10 @@ const ClubTaskDetails = () => {
         onClose={() => {
           setShowProfileModal(false);
           setSelectedProfileData(null);
+          setSelectedAdditionalFields([]);
         }}
         profileData={selectedProfileData}
+        additionalFields={selectedAdditionalFields}
       />
     </AnimatedPage>
   );

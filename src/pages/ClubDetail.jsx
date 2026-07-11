@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Trash2, Edit3, CheckCircle, ExternalLink, Users, FileText } from 'lucide-react';
@@ -20,6 +20,7 @@ const ClubDetail = () => {
   const { chapterId } = useParams();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [chapter, setChapter] = useState(null);
   const [events, setEvents] = useState([]);
@@ -58,15 +59,66 @@ const ClubDetail = () => {
   // Public student profile state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedProfileData, setSelectedProfileData] = useState(null);
+  const [selectedAdditionalFields, setSelectedAdditionalFields] = useState([]);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [additionalFieldValues, setAdditionalFieldValues] = useState({});
 
-  const openPublicProfile = (profile) => {
+  const parseLabels = (labelStr) => {
+    if (!labelStr) return [];
+    try {
+      const parsed = JSON.parse(labelStr);
+      if (Array.isArray(parsed)) return parsed;
+      return [labelStr];
+    } catch (e) {
+      return [labelStr];
+    }
+  };
+
+  const parseValues = (valueStr, labels) => {
+    if (!valueStr) return {};
+    try {
+      const parsed = JSON.parse(valueStr);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (e) {
+      // ignore
+    }
+    const result = {};
+    if (labels && labels.length > 0) {
+      result[labels[0]] = valueStr;
+    }
+    return result;
+  };
+
+  const getAdditionalFieldsList = (labelStr, valueStr) => {
+    const labels = parseLabels(labelStr);
+    const values = parseValues(valueStr, labels);
+    return labels.map(label => ({
+      label,
+      value: values[label] || ''
+    }));
+  };
+
+  const openPublicProfile = (profile, labelStr = '', valueStr = '') => {
     setSelectedProfileData(profile);
+    setSelectedAdditionalFields(getAdditionalFieldsList(labelStr, valueStr));
     setShowProfileModal(true);
   };
 
   useEffect(() => {
     fetchClubData();
   }, [chapterId, user]);
+
+  useEffect(() => {
+    if (location.state?.autoApply && !loading && chapter) {
+      const myMembership = memberships.find(m => m.user_id === user?.id);
+      if (!myMembership) {
+        handleApplyClick();
+      }
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, loading, chapter, memberships, user]);
 
   const fetchClubData = async () => {
     try {
@@ -322,22 +374,56 @@ const ClubDetail = () => {
     }
   };
 
-  const handleApply = async () => {
+  const handleApplyClick = () => {
+    const labels = parseLabels(chapter?.additional_field_label);
+    if (labels.length > 0) {
+      setAdditionalFieldValues({});
+      setShowApplyModal(true);
+    } else {
+      submitApplication({});
+    }
+  };
+
+  const handleApplySubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    await submitApplication(additionalFieldValues);
+  };
+
+  const submitApplication = async (fieldValues) => {
     try {
+      setSubmittingTask(true);
+      const labels = parseLabels(chapter?.additional_field_label);
+      
+      // Perform strict validation check on custom fields
+      if (labels.length > 0) {
+        for (const label of labels) {
+          if (!fieldValues[label] || !fieldValues[label].trim()) {
+            alert(`Please enter your ${label}`);
+            return;
+          }
+        }
+      }
+
+      const valPayload = labels.length > 0 ? JSON.stringify(fieldValues) : null;
       const { error } = await supabase
         .from('club_members')
         .insert([{
           chapter_id: chapterId,
           user_id: user?.id,
           role: 'member',
-          status: 'pending'
+          status: 'pending',
+          additional_field_value: valPayload
         }]);
 
       if (error) throw error;
       alert('Application submitted successfully!');
+      setShowApplyModal(false);
+      setAdditionalFieldValues({});
       await fetchClubData();
     } catch (err) {
       alert('Failed to apply: ' + err.message);
+    } finally {
+      setSubmittingTask(false);
     }
   };
 
@@ -587,7 +673,7 @@ const ClubDetail = () => {
                   {!myMembership ? (
                     <button 
                       className="btn btn-primary animate-hover" 
-                      onClick={handleApply}
+                      onClick={handleApplyClick}
                     >
                       Apply to Join Club
                     </button>
@@ -827,7 +913,7 @@ const ClubDetail = () => {
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '0.75rem' }}>
                           <span 
-                            onClick={() => openPublicProfile(m.profiles)}
+                            onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                             style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                             onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                             onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -904,7 +990,7 @@ const ClubDetail = () => {
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                               <td style={{ padding: '0.75rem' }}>
                                 <span 
-                                  onClick={() => openPublicProfile(m.profiles)}
+                                  onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                                   style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                                   onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                                   onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -975,7 +1061,7 @@ const ClubDetail = () => {
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                               <td style={{ padding: '0.75rem' }}>
                                 <span 
-                                  onClick={() => openPublicProfile(m.profiles)}
+                                  onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                                   style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                                   onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                                   onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -1046,7 +1132,7 @@ const ClubDetail = () => {
                             <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                               <td style={{ padding: '0.75rem' }}>
                                 <span 
-                                  onClick={() => openPublicProfile(m.profiles)}
+                                  onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                                   style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                                   onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                                   onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -1364,6 +1450,9 @@ const ClubDetail = () => {
                       <th style={{ padding: '0.75rem' }}>Email</th>
                       <th style={{ padding: '0.75rem' }}>Roll Number</th>
                       <th style={{ padding: '0.75rem' }}>Department</th>
+                      {chapter?.additional_field_label && (
+                        <th style={{ padding: '0.75rem' }}>Registration Details</th>
+                      )}
                       <th style={{ padding: '0.75rem' }}>Actions</th>
                     </tr>
                   </thead>
@@ -1372,7 +1461,7 @@ const ClubDetail = () => {
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '0.75rem' }}>
                          <span 
-                           onClick={() => openPublicProfile(m.profiles)}
+                           onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                            style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -1383,6 +1472,31 @@ const ClubDetail = () => {
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
+                        {chapter?.additional_field_label && (
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              {getAdditionalFieldsList(chapter.additional_field_label, m.additional_field_value).map((item, idx) => (
+                                <div key={idx} style={{ fontSize: '0.85rem' }}>
+                                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}: </span>
+                                  {item.value ? (
+                                    item.value.startsWith('http') ? (
+                                      <a 
+                                        href={item.value} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        style={{ color: 'var(--primary-color)', textDecoration: 'underline' }}
+                                      >
+                                        Open Link
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-color)' }}>{item.value}</span>
+                                    )
+                                  ) : <span style={{ color: 'var(--text-secondary)' }}>N/A</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        )}
                         <td style={{ padding: '0.75rem' }}>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button 
@@ -1423,6 +1537,9 @@ const ClubDetail = () => {
                       <th style={{ padding: '0.75rem' }}>Email</th>
                       <th style={{ padding: '0.75rem' }}>Roll Number</th>
                       <th style={{ padding: '0.75rem' }}>Department</th>
+                      {chapter?.additional_field_label && (
+                        <th style={{ padding: '0.75rem' }}>Registration Details</th>
+                      )}
                       <th style={{ padding: '0.75rem' }}>Actions</th>
                     </tr>
                   </thead>
@@ -1431,7 +1548,7 @@ const ClubDetail = () => {
                       <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '0.75rem' }}>
                          <span 
-                           onClick={() => openPublicProfile(m.profiles)}
+                           onClick={() => openPublicProfile(m.profiles, chapter?.additional_field_label, m.additional_field_value)}
                            style={{ cursor: 'pointer', color: 'var(--primary-color)', fontWeight: 500 }}
                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
@@ -1442,6 +1559,31 @@ const ClubDetail = () => {
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
+                        {chapter?.additional_field_label && (
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              {getAdditionalFieldsList(chapter.additional_field_label, m.additional_field_value).map((item, idx) => (
+                                <div key={idx} style={{ fontSize: '0.85rem' }}>
+                                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}: </span>
+                                  {item.value ? (
+                                    item.value.startsWith('http') ? (
+                                      <a 
+                                        href={item.value} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        style={{ color: 'var(--primary-color)', textDecoration: 'underline' }}
+                                      >
+                                        Open Link
+                                      </a>
+                                    ) : (
+                                      <span style={{ color: 'var(--text-color)' }}>{item.value}</span>
+                                    )
+                                  ) : <span style={{ color: 'var(--text-secondary)' }}>N/A</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        )}
                         <td style={{ padding: '0.75rem' }}>
                           <button 
                             className="btn btn-outline" 
@@ -2036,14 +2178,100 @@ const ClubDetail = () => {
         </div>
       )}
 
+      {/* Apply Custom Field Modal */}
+      {showApplyModal && (
+        <div 
+          onClick={() => {
+            setShowApplyModal(false);
+            setAdditionalFieldValues({});
+          }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+        >
+          <div 
+            onClick={e => e.stopPropagation()} 
+            className="glass-panel"
+            style={{
+              maxWidth: '500px',
+              width: '100%',
+              padding: '2rem',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+            }}
+          >
+            <h3 style={{ marginBottom: '1rem', fontWeight: 'bold' }}>Join {chapter?.name}</h3>
+            <p className="text-secondary" style={{ marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              The club lead requires you to provide the following details in order to apply.
+            </p>
+            <form onSubmit={handleApplySubmit}>
+              {parseLabels(chapter?.additional_field_label).map((label, idx) => (
+                <div className="form-group" style={{ marginBottom: '1.5rem' }} key={idx}>
+                  <label className="form-label" style={{ fontWeight: 600 }}>
+                    {label} <span style={{ color: 'var(--danger-color)' }}>*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder={`Enter your ${label.toLowerCase()}`}
+                    value={additionalFieldValues[label] || ''}
+                    onChange={e => setAdditionalFieldValues({
+                      ...additionalFieldValues,
+                      [label]: e.target.value
+                    })}
+                    required
+                  />
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ flex: 1 }} 
+                  onClick={() => {
+                    setShowApplyModal(false);
+                    setAdditionalFieldValues({});
+                  }}
+                  disabled={submittingTask}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1 }}
+                  disabled={submittingTask}
+                >
+                  {submittingTask ? 'Submitting...' : 'Submit Application'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Public Profile Modal */}
       <PublicProfileModal
         isOpen={showProfileModal}
         onClose={() => {
           setShowProfileModal(false);
           setSelectedProfileData(null);
+          setSelectedAdditionalFields([]);
         }}
         profileData={selectedProfileData}
+        additionalFields={selectedAdditionalFields}
       />
     </div>
   );

@@ -28,6 +28,7 @@ CREATE TABLE public.club_chapters (
   academic_year TEXT NOT NULL,
   status chapter_status DEFAULT 'pending',
   campus_lead_id UUID REFERENCES public.profiles(id),
+  additional_field_label TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -40,6 +41,7 @@ CREATE TABLE public.club_members (
   role member_role DEFAULT 'member',
   designation TEXT,
   assigned_by UUID REFERENCES public.profiles(id),
+  additional_field_value TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(chapter_id, user_id)
 );

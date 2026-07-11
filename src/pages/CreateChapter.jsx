@@ -23,12 +23,16 @@ const CreateChapter = () => {
   const [academicYear, setAcademicYear] = useState(getCurrentAcademicYear());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [additionalFields, setAdditionalFields] = useState(['']);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
       setError('');
+      
+      const filteredFields = additionalFields.map(f => f.trim()).filter(f => f !== '');
+      const fieldsPayload = filteredFields.length > 0 ? JSON.stringify(filteredFields) : null;
       
       const { error: chapterError } = await supabase
         .from('club_chapters')
@@ -37,7 +41,8 @@ const CreateChapter = () => {
           description,
           academic_year: academicYear,
           campus_lead_id: user.id,
-          status: 'pending'
+          status: 'pending',
+          additional_field_label: fieldsPayload
         }]);
 
       if (chapterError) throw chapterError;
@@ -85,6 +90,63 @@ const CreateChapter = () => {
               rows="4"
               placeholder="What will this club do this year?"
             />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Additional Required Applicant Details (Optional)</span>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', height: 'auto' }}
+                onClick={() => setAdditionalFields([...additionalFields, ''])}
+              >
+                + Add Field
+              </button>
+            </label>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {additionalFields.map((field, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={field} 
+                    onChange={(e) => {
+                      const newFields = [...additionalFields];
+                      newFields[idx] = e.target.value;
+                      setAdditionalFields(newFields);
+                    }} 
+                    placeholder={`Field #${idx + 1} (e.g. Leetcode Profile Link, Portfolio URL)`}
+                  />
+                  {additionalFields.length > 1 && (
+                    <button 
+                      type="button" 
+                      className="btn btn-outline" 
+                      style={{ 
+                        padding: '0.5rem', 
+                        color: 'var(--danger-color)', 
+                        borderColor: 'var(--danger-color)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        height: '42px',
+                        width: '42px'
+                      }}
+                      onClick={() => {
+                        const newFields = additionalFields.filter((_, fIdx) => fIdx !== idx);
+                        setAdditionalFields(newFields);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
+              If specified, students applying to join this club will be required to provide these details.
+            </small>
           </div>
 
           <div className="form-group">
