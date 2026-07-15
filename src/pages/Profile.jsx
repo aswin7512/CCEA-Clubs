@@ -351,6 +351,11 @@ const Profile = () => {
                 </div>
 
                 <div style={{ padding: '1rem', backgroundColor: 'var(--input-bg)', borderRadius: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Semester</span>
+                  <p style={{ margin: '0.25rem 0 0 0', fontWeight: 'bold' }}>{profile.semester ? `Semester ${profile.semester}` : 'N/A'}</p>
+                </div>
+
+                <div style={{ padding: '1rem', backgroundColor: 'var(--input-bg)', borderRadius: '0.5rem' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Division</span>
                   <p style={{ margin: '0.25rem 0 0 0', fontWeight: 'bold' }}>{profile.division || 'N/A'}</p>
                 </div>

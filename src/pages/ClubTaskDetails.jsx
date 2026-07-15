@@ -162,7 +162,7 @@ const ClubTaskDetails = () => {
       const canManage = isCampusLead || (memberData && memberData.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(memberData.role));
 
       // 4. Fetch my completion if student
-      if (profile?.role === 'student') {
+      if (profile?.role === 'student' || profile?.role === 'super_admin') {
         const { data: compData, error: compError } = await supabase
           .from('club_task_completions')
           .select('*')
@@ -242,7 +242,7 @@ const ClubTaskDetails = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
 
     // For students, update visited links in localStorage & trigger DB visit if all visited
-    if (profile?.role === 'student') {
+    if (profile?.role === 'student' || profile?.role === 'super_admin') {
       const visitedKey = `visited_links_${taskId}_${user.id}`;
       let nextVisited = [...visitedUrls];
       if (!nextVisited.includes(linkUrl)) {
@@ -369,7 +369,7 @@ const ClubTaskDetails = () => {
               <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
                 <CheckCircle size={15} /> Completed
               </span>
-            ) : profile?.role === 'student' ? (
+            ) : (profile?.role === 'student' || profile?.role === 'super_admin') ? (
               <span className="badge badge-warning" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
                 Pending Completion
               </span>
@@ -427,7 +427,7 @@ const ClubTaskDetails = () => {
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          {profile?.role === 'student' && (
+                          {(profile?.role === 'student' || profile?.role === 'super_admin') && (
                             <span style={{
                               fontSize: '0.8rem',
                               color: isVisited ? '#10b981' : 'var(--text-secondary)',
@@ -451,7 +451,7 @@ const ClubTaskDetails = () => {
                     );
                   })}
                 </div>
-                {profile?.role === 'student' && !myCompletion?.is_visited && (
+                {(profile?.role === 'student' || profile?.role === 'super_admin') && !myCompletion?.is_visited && (
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.75rem', fontStyle: 'italic' }}>
                     Note: You must click "Open Link" for all of the links above to enable completion submission.
                   </p>
@@ -462,7 +462,7 @@ const ClubTaskDetails = () => {
         </motion.div>
 
         {/* Student Completion Action panel */}
-        {profile?.role === 'student' && (
+        {(profile?.role === 'student' || profile?.role === 'super_admin') && (
           <motion.div
             className="glass-panel"
             style={{ marginBottom: '2rem' }}
@@ -599,7 +599,7 @@ const ClubTaskDetails = () => {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              {student.profiles?.roll_number} • {student.profiles?.department}
+                              {student.profiles?.roll_number} • {student.profiles?.department}{student.profiles?.semester && ` • Sem ${student.profiles.semester}`}
                             </div>
                           </td>
                           <td style={{ padding: '0.75rem' }}>

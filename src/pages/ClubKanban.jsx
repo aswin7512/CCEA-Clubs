@@ -14,6 +14,7 @@ const ClubKanban = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isChapterLeader, setIsChapterLeader] = useState(false);
   
   // New task form state
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
@@ -37,7 +38,7 @@ const ClubKanban = () => {
       if (chapterError) throw chapterError;
       setChapter(chapterData);
       
-      let isChapterLeader = false;
+      let isLeader = false;
       const { data: leaderMember } = await supabase
         .from('club_members')
         .select('role, status')
@@ -46,23 +47,24 @@ const ClubKanban = () => {
         .single();
 
       if (chapterData.campus_lead_id === user.id) {
-        isChapterLeader = true;
+        isLeader = true;
       } else if (leaderMember?.status === 'approved' && ['core_team', 'lead', 'faculty_coordinator'].includes(leaderMember?.role)) {
-        isChapterLeader = true;
+        isLeader = true;
       }
+      
+      setIsChapterLeader(isLeader);
 
-      // Check if super_admin or faculty globally
+      // Check if super_admin globally
       const { data: userProfile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single();
 
-      if (userProfile?.role === 'super_admin') {
-        isChapterLeader = true;
-      }
+      const isSuperAdmin = userProfile?.role === 'super_admin';
+      const hasAccess = isLeader || isSuperAdmin;
 
-      if (!isChapterLeader) {
+      if (!hasAccess) {
         throw new Error('Access Denied: You do not have permission to view tasks for this club.');
       }
 
@@ -92,6 +94,10 @@ const ClubKanban = () => {
   const handleCreateTask = async (e) => {
     e.preventDefault();
     if (!newTask.title.trim()) return;
+    if (!isChapterLeader) {
+      alert('You do not have permission to perform this action.');
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -115,6 +121,10 @@ const ClubKanban = () => {
   };
 
   const handleDeleteTask = async (taskId) => {
+    if (!isChapterLeader) {
+      alert('You do not have permission to perform this action.');
+      return;
+    }
     if (!window.confirm("Delete this task?")) return;
     try {
       const { error } = await supabase.from('club_tasks').delete().eq('id', taskId);
@@ -126,6 +136,10 @@ const ClubKanban = () => {
   };
 
   const updateTaskStatus = async (taskId, newStatus) => {
+    if (!isChapterLeader) {
+      alert('You do not have permission to perform this action.');
+      return;
+    }
     try {
       // Optimistic update
       setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
@@ -145,15 +159,18 @@ const ClubKanban = () => {
 
   // Drag and Drop Handlers
   const handleDragStart = (e, taskId) => {
+    if (!isChapterLeader) return;
     e.dataTransfer.setData('taskId', taskId);
   };
 
   const handleDragOver = (e) => {
+    if (!isChapterLeader) return;
     e.preventDefault(); // Necessary to allow dropping
   };
 
   const handleDrop = (e, status) => {
     e.preventDefault();
+    if (!isChapterLeader) return;
     const taskId = e.dataTransfer.getData('taskId');
     if (taskId) {
       updateTaskStatus(taskId, status);
@@ -195,17 +212,17 @@ const ClubKanban = () => {
           {columnTasks.map(task => (
             <motion.div 
               key={task.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, task.id)}
+              draggable={isChapterLeader}
+              onDragStart={isChapterLeader ? (e) => handleDragStart(e, task.id) : undefined}
               style={{
                 backgroundColor: 'var(--bg-color)',
                 padding: '1rem',
                 borderRadius: '0.5rem',
                 border: '1px solid var(--input-border)',
-                cursor: 'grab',
+                cursor: isChapterLeader ? 'grab' : 'default',
                 position: 'relative'
               }}
-              whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+              whileHover={isChapterLeader ? { y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' } : {}}
             >
               <h4 style={{ margin: '0 0 0.5rem 0', paddingRight: '1.5rem', fontSize: '0.95rem' }}>{task.title}</h4>
               {task.description && (
@@ -214,41 +231,45 @@ const ClubKanban = () => {
                 </p>
               )}
               
-              <button 
-                onClick={() => handleDeleteTask(task.id)}
-                style={{
-                  position: 'absolute',
-                  top: '0.5rem',
-                  right: '0.5rem',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0.25rem'
-                }}
-                title="Delete Task"
-              >
-                <Trash2 size={14} />
-              </button>
+              {isChapterLeader && (
+                <button 
+                  onClick={() => handleDeleteTask(task.id)}
+                  style={{
+                    position: 'absolute',
+                    top: '0.5rem',
+                    right: '0.5rem',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                  title="Delete Task"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
             </motion.div>
           ))}
           {columnTasks.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', margin: 'auto' }}>
-              Drag tasks here
+              {isChapterLeader ? 'Drag tasks here' : 'No tasks'}
             </div>
           )}
         </div>
         
-        <button 
-          className="btn btn-ghost" 
-          style={{ width: '100%', marginTop: '1rem', fontSize: '0.85rem', border: '1px dashed var(--input-border)' }}
-          onClick={() => {
-            setNewTask({ title: '', description: '', status });
-            setShowNewTaskForm(true);
-          }}
-        >
-          <Plus size={16} style={{ marginRight: '0.25rem' }} /> Add Task
-        </button>
+        {isChapterLeader && (
+          <button 
+            className="btn btn-ghost" 
+            style={{ width: '100%', marginTop: '1rem', fontSize: '0.85rem', border: '1px dashed var(--input-border)' }}
+            onClick={() => {
+              setNewTask({ title: '', description: '', status });
+              setShowNewTaskForm(true);
+            }}
+          >
+            <Plus size={16} style={{ marginRight: '0.25rem' }} /> Add Task
+          </button>
+        )}
       </div>
     );
   };

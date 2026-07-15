@@ -174,7 +174,7 @@ const ClubDetail = () => {
           
           const inlineIsCampusLead = chapterData.campus_lead_id === user?.id;
           const userMem = (membersData || []).find(m => m.user_id === user?.id);
-          const inlineIsLeader = (profile?.role === 'super_admin') || inlineIsCampusLead || (userMem?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(userMem?.role));
+          const inlineIsLeader = inlineIsCampusLead || (userMem?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(userMem?.role));
           
           if (inlineIsLeader) {
             // Fetch all completions for these tasks
@@ -214,11 +214,11 @@ const ClubDetail = () => {
   // Determine current user's membership details
   const myMembership = memberships.find(m => m.user_id === user?.id);
   const isCampusLead = chapter?.campus_lead_id === user?.id;
-  const isFaculty = profile?.role === 'faculty' || profile?.role === 'super_admin';
+  const isFaculty = profile?.role === 'faculty';
   const isApprovedMember = isCampusLead || myMembership?.status === 'approved' || isFaculty;
   const isSuperAdmin = profile?.role === 'super_admin';
-  const isLeader = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
-  const canManageRoles = isSuperAdmin || isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
+  const isLeader = isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
+  const canManageRoles = isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
   const canManageTasks = isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
 
   const handleSaveTask = async (e) => {
@@ -884,7 +884,7 @@ const ClubDetail = () => {
           <div className="glass-panel" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ margin: 0, color: 'var(--primary-color)' }}>Faculty Coordinator</h3>
-              {(isCampusLead || isSuperAdmin) && (
+              {isCampusLead && (
                 <button 
                   className="btn btn-primary" 
                   style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
@@ -980,6 +980,7 @@ const ClubDetail = () => {
                           <tr style={{ borderBottom: '1px solid var(--input-border)', color: 'var(--text-secondary)' }}>
                             <th style={{ padding: '0.75rem' }}>Name</th>
                             <th style={{ padding: '0.75rem' }}>Email</th>
+                            <th style={{ padding: '0.75rem' }}>Semester</th>
                             <th style={{ padding: '0.75rem' }}>Department</th>
                             <th style={{ padding: '0.75rem' }}>Role</th>
                             {canManageRoles && <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>}
@@ -999,6 +1000,7 @@ const ClubDetail = () => {
                                 </span>
                               </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>{m.profiles?.semester ? `Sem ${m.profiles.semester}` : 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
                                 <span style={{ 
@@ -1014,7 +1016,7 @@ const ClubDetail = () => {
                               {canManageRoles && (
                                 <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                                   {m.user_id !== chapter?.campus_lead_id && m.id !== 'virtual-lead' && (
-                                    (isCampusLead || isSuperAdmin || ['member', 'volunteer'].includes(m.role)) && (
+                                    (isCampusLead || ['member', 'volunteer'].includes(m.role)) && (
                                       <button 
                                         className="btn btn-outline" 
                                         style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
@@ -1051,6 +1053,7 @@ const ClubDetail = () => {
                           <tr style={{ borderBottom: '1px solid var(--input-border)', color: 'var(--text-secondary)' }}>
                             <th style={{ padding: '0.75rem' }}>Name</th>
                             <th style={{ padding: '0.75rem' }}>Email</th>
+                            <th style={{ padding: '0.75rem' }}>Semester</th>
                             <th style={{ padding: '0.75rem' }}>Department</th>
                             <th style={{ padding: '0.75rem' }}>Role</th>
                             {canManageRoles && <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>}
@@ -1070,6 +1073,7 @@ const ClubDetail = () => {
                                 </span>
                               </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>{m.profiles?.semester ? `Sem ${m.profiles.semester}` : 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
                                 <span style={{ 
@@ -1085,7 +1089,7 @@ const ClubDetail = () => {
                               {canManageRoles && (
                                 <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                                   {m.user_id !== chapter?.campus_lead_id && m.id !== 'virtual-lead' && (
-                                    (isCampusLead || isSuperAdmin || ['member', 'volunteer'].includes(m.role)) && (
+                                    (isCampusLead || ['member', 'volunteer'].includes(m.role)) && (
                                       <button 
                                         className="btn btn-outline" 
                                         style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
@@ -1122,6 +1126,7 @@ const ClubDetail = () => {
                           <tr style={{ borderBottom: '1px solid var(--input-border)', color: 'var(--text-secondary)' }}>
                             <th style={{ padding: '0.75rem' }}>Name</th>
                             <th style={{ padding: '0.75rem' }}>Email</th>
+                            <th style={{ padding: '0.75rem' }}>Semester</th>
                             <th style={{ padding: '0.75rem' }}>Department</th>
                             <th style={{ padding: '0.75rem' }}>Role</th>
                             {canManageRoles && <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>}
@@ -1141,6 +1146,7 @@ const ClubDetail = () => {
                                 </span>
                               </td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
+                              <td style={{ padding: '0.75rem' }}>{m.profiles?.semester ? `Sem ${m.profiles.semester}` : 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                               <td style={{ padding: '0.75rem' }}>
                                 <span style={{ 
@@ -1157,7 +1163,7 @@ const ClubDetail = () => {
                               {canManageRoles && (
                                 <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                                   {m.user_id !== chapter?.campus_lead_id && m.id !== 'virtual-lead' && (
-                                    (isCampusLead || isSuperAdmin || ['member', 'volunteer'].includes(m.role)) && (
+                                    (isCampusLead || ['member', 'volunteer'].includes(m.role)) && (
                                       <button 
                                         className="btn btn-outline" 
                                         style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
@@ -1262,7 +1268,7 @@ const ClubDetail = () => {
                   >
                     <option value="member">Member</option>
                     <option value="volunteer">Volunteer</option>
-                    {(isCampusLead || isSuperAdmin) && (
+                    {isCampusLead && (
                       <option value="core_team">Core Team</option>
                     )}
                   </select>
@@ -1449,6 +1455,7 @@ const ClubDetail = () => {
                       <th style={{ padding: '0.75rem' }}>Name</th>
                       <th style={{ padding: '0.75rem' }}>Email</th>
                       <th style={{ padding: '0.75rem' }}>Roll Number</th>
+                      <th style={{ padding: '0.75rem' }}>Semester</th>
                       <th style={{ padding: '0.75rem' }}>Department</th>
                       {chapter?.additional_field_label && (
                         <th style={{ padding: '0.75rem' }}>Registration Details</th>
@@ -1471,6 +1478,7 @@ const ClubDetail = () => {
                        </td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
+                        <td style={{ padding: '0.75rem' }}>{m.profiles?.semester ? `Sem ${m.profiles.semester}` : 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                         {chapter?.additional_field_label && (
                           <td style={{ padding: '0.75rem' }}>
@@ -1536,6 +1544,7 @@ const ClubDetail = () => {
                       <th style={{ padding: '0.75rem' }}>Name</th>
                       <th style={{ padding: '0.75rem' }}>Email</th>
                       <th style={{ padding: '0.75rem' }}>Roll Number</th>
+                      <th style={{ padding: '0.75rem' }}>Semester</th>
                       <th style={{ padding: '0.75rem' }}>Department</th>
                       {chapter?.additional_field_label && (
                         <th style={{ padding: '0.75rem' }}>Registration Details</th>
@@ -1558,6 +1567,7 @@ const ClubDetail = () => {
                        </td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.email || 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.roll_number || 'N/A'}</td>
+                        <td style={{ padding: '0.75rem' }}>{m.profiles?.semester ? `Sem ${m.profiles.semester}` : 'N/A'}</td>
                         <td style={{ padding: '0.75rem' }}>{m.profiles?.department || 'N/A'}</td>
                         {chapter?.additional_field_label && (
                           <td style={{ padding: '0.75rem' }}>

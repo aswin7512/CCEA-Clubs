@@ -58,7 +58,7 @@ export const generateAttendancePDF = (event, registrations) => {
 
     if (event.is_during_class_hours) {
       const hours = event.class_hours || [];
-      headRow = ['Name of Participant', 'PRP Code', 'Roll Number', ...hours.map(h => `Hour ${h}`)];
+      headRow = ['Name of Participant', 'PRP Code', 'Roll Number', 'Semester', ...hours.map(h => `Hour ${h}`)];
       
       regs.forEach(reg => {
         const attended = Array.isArray(reg.attended_hours) ? reg.attended_hours : [];
@@ -66,7 +66,8 @@ export const generateAttendancePDF = (event, registrations) => {
         const row = [
           reg.profiles?.name || 'Unknown',
           reg.profiles?.prp_code || 'N/A',
-          reg.profiles?.roll_number || 'N/A'
+          reg.profiles?.roll_number || 'N/A',
+          reg.profiles?.semester ? `Sem ${reg.profiles.semester}` : 'N/A'
         ];
 
         hours.forEach(h => {
@@ -80,12 +81,13 @@ export const generateAttendancePDF = (event, registrations) => {
         body.push(row);
       });
     } else {
-      headRow = ['Name of Participant', 'PRP Code', 'Roll Number', 'Attendance'];
+      headRow = ['Name of Participant', 'PRP Code', 'Roll Number', 'Semester', 'Attendance'];
       regs.forEach(reg => {
         body.push([
           reg.profiles?.name || 'Unknown',
           reg.profiles?.prp_code || 'N/A',
           reg.profiles?.roll_number || 'N/A',
+          reg.profiles?.semester ? `Sem ${reg.profiles.semester}` : 'N/A',
           reg.is_present ? 'Present' : 'Absent'
         ]);
       });

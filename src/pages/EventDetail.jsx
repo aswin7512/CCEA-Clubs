@@ -72,11 +72,11 @@ const EventDetail = () => {
 
       setIsClubMember(memberShipApproved);
 
-      const isAuthorized = isCreator || isCoHost || isSuperAdmin || isChapterLeader;
+      const isAuthorized = isCreator || isCoHost || isChapterLeader;
       setIsHostOrLeader(isAuthorized);
 
       // Check if student is enrolled in the chapter of this event (only if event is restricted to members)
-      if (profile?.role === 'student' && eventData.restrict_to_members) {
+      if ((profile?.role === 'student' || profile?.role === 'super_admin') && eventData.restrict_to_members) {
         const { data: memberData, error: memberError } = await supabase
           .from('club_members')
           .select('*')
@@ -127,7 +127,7 @@ const EventDetail = () => {
       // 4. Fetch all registrations for PDF export if needed
       const { data: allRegsData, error: regsError } = await supabase
         .from('event_registrations')
-        .select('*, profiles:user_id(name, email, department, roll_number, prp_code)')
+        .select('*, profiles:user_id(name, email, department, roll_number, prp_code, semester)')
         .eq('event_id', eventId);
         
       if (regsError) {
@@ -355,7 +355,7 @@ const EventDetail = () => {
           </motion.div>
         )}
 
-        {profile?.role !== 'faculty' && (profile?.role !== 'super_admin' || isClubMember) && (
+        {profile?.role !== 'faculty' && (
           !hasApplied ? (
             isEventOver(event) ? (
               <motion.div

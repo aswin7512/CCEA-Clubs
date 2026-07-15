@@ -16,6 +16,7 @@ CREATE TABLE public.profiles (
   prp_code TEXT UNIQUE,
   phone_number TEXT UNIQUE NOT NULL,
   roll_number TEXT,
+  semester INTEGER CHECK (semester >= 1 AND semester <= 8),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -273,3 +274,84 @@ CREATE TABLE public.club_task_completions (
 
 ALTER TABLE public.club_task_completions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations for authenticated users on club_task_completions" ON public.club_task_completions FOR ALL USING (auth.role() = 'authenticated');
+
+-- 18. Helper function to calculate semester from prp_code
+CREATE OR REPLACE FUNCTION public.calculate_semester(prp_code TEXT, check_date DATE DEFAULT CURRENT_DATE)
+RETURNS INTEGER AS $$
+DECLARE
+  admission_year INTEGER;
+  curr_year INTEGER;
+  curr_month INTEGER;
+  academic_base_year INTEGER;
+  semester INTEGER;
+  start_pos INTEGER;
+BEGIN
+  -- Validate and identify format
+  IF prp_code IS NULL THEN
+    RETURN NULL;
+  ELSIF prp_code ~* '^LPRP[0-9]{2}' THEN
+    start_pos := 5;
+  ELSIF prp_code ~* '^PRP[0-9]{2}' THEN
+    start_pos := 4;
+  ELSE
+    RETURN NULL;
+  END IF;
+
+  -- Extract admission year (e.g., '23' -> 2023)
+  admission_year := 2000 + (substring(prp_code from start_pos for 2)::INTEGER);
+
+  -- Get current calendar year and month
+  curr_year := extract(year from check_date)::INTEGER;
+  curr_month := extract(month from check_date)::INTEGER;
+
+  -- Calculate semester based on academic calendar (June-December / January-May)
+  IF curr_month >= 6 THEN
+    academic_base_year := curr_year;
+    semester := (academic_base_year - admission_year) * 2 + 1;
+  ELSE
+    academic_base_year := curr_year - 1;
+    semester := (academic_base_year - admission_year) * 2 + 2;
+  END IF;
+
+  -- Return NULL if student has likely graduated (semester > 8)
+  IF semester < 1 THEN
+    semester := 1;
+  ELSIF semester > 8 THEN
+    semester := NULL; 
+  END IF;
+
+  RETURN semester;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- 19. Create Trigger Function to sync profile semester
+CREATE OR REPLACE FUNCTION public.sync_profile_semester()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IN ('student', 'super_admin') THEN
+    NEW.semester := public.calculate_semester(NEW.prp_code);
+  ELSE
+    NEW.semester := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 20. Create BEFORE trigger on profiles
+DROP TRIGGER IF EXISTS on_profile_semester_sync ON public.profiles;
+CREATE TRIGGER on_profile_semester_sync
+  BEFORE INSERT OR UPDATE OF prp_code, role ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_semester();
+
+-- 21. Enable pg_cron and schedule daily update
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+SELECT cron.schedule(
+  'daily-semester-update',
+  '0 0 * * *',
+  $$UPDATE public.profiles 
+    SET semester = public.calculate_semester(prp_code) 
+    WHERE role IN ('student', 'super_admin') 
+      AND prp_code IS NOT NULL 
+      AND (semester IS DISTINCT FROM public.calculate_semester(prp_code));$$
+);

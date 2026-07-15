@@ -71,7 +71,7 @@ const ManageEvent = () => {
 
       const { data: regData, error: regError } = await supabase
         .from('event_registrations')
-        .select('*, profiles:user_id(name, email, department, roll_number, prp_code)')
+        .select('*, profiles:user_id(name, email, department, roll_number, prp_code, semester)')
         .eq('event_id', eventId)
         .order('created_at', { ascending: true });
 
@@ -241,6 +241,7 @@ const ManageEvent = () => {
         'Participant Email',
         'Department',
         'Roll Number',
+        'Semester',
         'PRP Code',
         'Status',
         'Attendance Details'
@@ -272,6 +273,7 @@ const ManageEvent = () => {
           reg.profiles?.email || '',
           reg.profiles?.department || '',
           reg.profiles?.roll_number || '',
+          reg.profiles?.semester || '',
           reg.profiles?.prp_code || '',
           reg.status,
           attendanceDetails
@@ -454,7 +456,9 @@ const ManageEvent = () => {
                     >
                       {reg.profiles?.name}
                     </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{reg.profiles?.roll_number || 'No Roll No'}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                      {reg.profiles?.roll_number || 'No Roll No'}{reg.profiles?.semester && ` • Sem ${reg.profiles.semester}`}
+                    </div>
                   </td>
                   
                   {event.is_during_class_hours ? (
@@ -560,6 +564,7 @@ const ManageEvent = () => {
                   <div><strong>Name:</strong> {selectedStudentReg.profiles?.name}</div>
                   <div><strong>Email:</strong> {selectedStudentReg.profiles?.email}</div>
                   <div><strong>Roll Number:</strong> {selectedStudentReg.profiles?.roll_number || 'N/A'}</div>
+                  <div><strong>Semester:</strong> {selectedStudentReg.profiles?.semester ? `Semester ${selectedStudentReg.profiles.semester}` : 'N/A'}</div>
                   <div><strong>Department:</strong> {selectedStudentReg.profiles?.department || 'N/A'}</div>
                   <div><strong>PRP Code:</strong> {selectedStudentReg.profiles?.prp_code || 'N/A'}</div>
                   <div><strong>Status:</strong> <span style={{ textTransform: 'uppercase', fontWeight: 'bold', fontSize: '0.8rem', color: selectedStudentReg.status === 'approved' ? 'var(--secondary-color)' : selectedStudentReg.status === 'rejected' ? 'var(--danger-color)' : '#f59e0b' }}>{selectedStudentReg.status}</span></div>

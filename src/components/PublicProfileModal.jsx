@@ -197,7 +197,7 @@ const PublicProfileModal = ({ isOpen, onClose, userId, profileData, additionalFi
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem' }}>
                     {/* Roll Number */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                       <Hash size={18} style={{ color: 'var(--primary-color)', marginTop: '0.25rem' }} />
@@ -206,6 +206,17 @@ const PublicProfileModal = ({ isOpen, onClose, userId, profileData, additionalFi
                         <span style={{ fontSize: '0.95rem', color: 'var(--text-color)' }}>{profile.roll_number || 'N/A'}</span>
                       </div>
                     </div>
+
+                    {/* Semester */}
+                    {profile.role === 'student' && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <Layers size={18} style={{ color: 'var(--primary-color)', marginTop: '0.25rem' }} />
+                        <div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block' }}>Semester</span>
+                          <span style={{ fontSize: '0.95rem', color: 'var(--text-color)' }}>{profile.semester ? `Sem ${profile.semester}` : 'N/A'}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Division */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>

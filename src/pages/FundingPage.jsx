@@ -19,7 +19,7 @@ const FundingPage = () => {
   const [clubsList, setClubsList] = useState([]);
   const [selectedClubFilter, setSelectedClubFilter] = useState('all');
 
-  const isSuperAdmin = profile?.role === 'super_admin';
+  const isSuperAdmin = false;
   const canPrint = profile?.role === 'faculty' || profile?.role === 'super_admin';
 
   useEffect(() => {
