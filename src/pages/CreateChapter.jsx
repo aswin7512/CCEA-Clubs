@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { AVAILABLE_INTEGRATIONS } from '../lib/integrations';
 
 const getCurrentAcademicYear = () => {
   const now = new Date();
@@ -24,6 +25,15 @@ const CreateChapter = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [additionalFields, setAdditionalFields] = useState(['']);
+  const [selectedIntegrations, setSelectedIntegrations] = useState(['leetcode']);
+
+  const toggleIntegration = (key) => {
+    if (selectedIntegrations.includes(key)) {
+      setSelectedIntegrations(selectedIntegrations.filter(k => k !== key));
+    } else {
+      setSelectedIntegrations([...selectedIntegrations, key]);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +52,8 @@ const CreateChapter = () => {
           academic_year: academicYear,
           campus_lead_id: user.id,
           status: 'pending',
-          additional_field_label: fieldsPayload
+          additional_field_label: fieldsPayload,
+          feature_integrations: JSON.stringify(selectedIntegrations)
         }]);
 
       if (chapterError) throw chapterError;
@@ -117,7 +128,7 @@ const CreateChapter = () => {
                       newFields[idx] = e.target.value;
                       setAdditionalFields(newFields);
                     }} 
-                    placeholder={`Field #${idx + 1} (e.g. Leetcode Profile Link, Portfolio URL)`}
+                    placeholder={`Field #${idx + 1} (e.g. Github Profile Link, Portfolio URL)`}
                   />
                   {additionalFields.length > 1 && (
                     <button 
@@ -147,6 +158,47 @@ const CreateChapter = () => {
             <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.5rem' }}>
               If specified, students applying to join this club will be required to provide these details.
             </small>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" style={{ marginBottom: '0.75rem', display: 'block' }}>Feature Integrations</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {AVAILABLE_INTEGRATIONS.map(integration => {
+                const isSelected = selectedIntegrations.includes(integration.key);
+                return (
+                  <div 
+                    key={integration.key}
+                    onClick={() => toggleIntegration(integration.key)}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: isSelected ? '1px solid var(--primary-color)' : '1px solid var(--input-border)',
+                      backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--input-bg)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: isSelected ? 'var(--primary-color)' : 'var(--text-color)', fontSize: '0.95rem' }}>
+                        {integration.name}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                        {integration.description}
+                      </div>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected}
+                      onChange={() => {}} // handled by parent div
+                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary-color)' }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="form-group">

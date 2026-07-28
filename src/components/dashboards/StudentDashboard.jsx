@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { isEventOver } from '../../lib/eventUtils';
+import { isIntegrationEnabled } from '../../lib/integrations';
 import { Plus, Calendar, MapPin } from 'lucide-react';
 
 const container = {
@@ -141,7 +142,9 @@ const StudentDashboard = () => {
     };
     
     const labels = parseLabels(chapter?.additional_field_label);
-    if (labels.length > 0) {
+    const hasLeetcode = isIntegrationEnabled(chapter, 'leetcode');
+
+    if (labels.length > 0 || hasLeetcode) {
       // Redirect to the Club Detail page with an auto-apply flag so they get prompted
       navigate(`/club/${chapterId}`, { state: { autoApply: true } });
       return;

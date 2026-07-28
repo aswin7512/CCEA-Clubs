@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, Edit3, CheckCircle, ExternalLink, Users, FileText } from 'lucide-react';
+import { Plus, Trash2, Edit3, CheckCircle, ExternalLink, Users, FileText, Code, Activity, RefreshCw, Shield } from 'lucide-react';
 import PublicProfileModal from '../components/PublicProfileModal';
+import LeetCodeActivityTab from '../components/LeetCodeActivityTab';
+import ManageClassTutorsModal from '../components/ManageClassTutorsModal';
+import { isIntegrationEnabled, extractLeetCodeUsername, extractLeetCodeSlug, extractSlugsFromTaskLinks } from '../lib/integrations';
 
 const parseTaskLinks = (taskLinkStr) => {
   if (!taskLinkStr) return [];
@@ -25,6 +28,8 @@ const ClubDetail = () => {
   const [chapter, setChapter] = useState(null);
   const [events, setEvents] = useState([]);
   const [memberships, setMemberships] = useState([]);
+  const [classTutors, setClassTutors] = useState([]);
+  const [showManageTutorsModal, setShowManageTutorsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -154,6 +159,20 @@ const ClubDetail = () => {
       if (eventsError) throw eventsError;
       setEvents(eventsData || []);
 
+      // 3b. Fetch class tutors for this chapter
+      let loadedClassTutors = [];
+      const { data: tutorsData, error: tutorsError } = await supabase
+        .from('club_class_tutors')
+        .select('*, profiles:tutor_id(*)')
+        .eq('chapter_id', chapterId);
+
+      if (!tutorsError && tutorsData) {
+        loadedClassTutors = tutorsData;
+        setClassTutors(tutorsData);
+      } else {
+        setClassTutors([]);
+      }
+
       // 4. Fetch club tasks (club_member_tasks)
       const { data: tasksData, error: tasksError } = await supabase
         .from('club_member_tasks')
@@ -175,8 +194,10 @@ const ClubDetail = () => {
           const inlineIsCampusLead = chapterData.campus_lead_id === user?.id;
           const userMem = (membersData || []).find(m => m.user_id === user?.id);
           const inlineIsLeader = inlineIsCampusLead || (userMem?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(userMem?.role));
-          
-          if (inlineIsLeader) {
+          const inlineIsAssignedTutor = loadedClassTutors.some(t => t.tutor_id === user?.id);
+          const inlineCanViewAllCompletions = inlineIsLeader || profile?.role === 'faculty' || profile?.role === 'super_admin' || inlineIsAssignedTutor;
+
+          if (inlineCanViewAllCompletions) {
             // Fetch all completions for these tasks
             const { data: compData, error: compError } = await supabase
               .from('club_task_completions')
@@ -220,6 +241,10 @@ const ClubDetail = () => {
   const isLeader = isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
   const canManageRoles = isCampusLead || (myMembership?.status === 'approved' && ['core_team', 'faculty_coordinator'].includes(myMembership?.role));
   const canManageTasks = isCampusLead || (myMembership?.status === 'approved' && ['lead', 'core_team', 'faculty_coordinator'].includes(myMembership?.role));
+  const hasLeetcodeIntegration = isIntegrationEnabled(chapter, 'leetcode');
+  const isTutorViewEnabled = isIntegrationEnabled(chapter, 'tutor_view');
+  const isAssignedTutor = classTutors.some(t => t.tutor_id === user?.id);
+  const canViewActivityTab = (hasLeetcodeIntegration || isTutorViewEnabled) && (isLeader || isFaculty || isSuperAdmin || isAssignedTutor);
 
   const handleSaveTask = async (e) => {
     e.preventDefault();
@@ -229,6 +254,8 @@ const ClubDetail = () => {
       setSubmittingTask(true);
       const links = (taskForm.task_links || []).filter(l => l.url.trim() !== '');
       const taskLinkVal = links.length > 0 ? JSON.stringify(links) : null;
+      const extractedSlugs = extractSlugsFromTaskLinks(links);
+      const targetSlugVal = extractedSlugs.length > 0 ? extractedSlugs.join(', ') : null;
 
       if (editingTask) {
         // Update task
@@ -238,6 +265,7 @@ const ClubDetail = () => {
             title: taskForm.title.trim(),
             description: taskForm.description?.trim() || null,
             task_link: taskLinkVal,
+            target_slug: targetSlugVal,
             updated_at: new Date()
           })
           .eq('id', editingTask.id);
@@ -252,7 +280,8 @@ const ClubDetail = () => {
             chapter_id: chapterId,
             title: taskForm.title.trim(),
             description: taskForm.description?.trim() || null,
-            task_link: taskLinkVal
+            task_link: taskLinkVal,
+            target_slug: targetSlugVal
           });
 
         if (error) throw error;
@@ -376,7 +405,8 @@ const ClubDetail = () => {
 
   const handleApplyClick = () => {
     const labels = parseLabels(chapter?.additional_field_label);
-    if (labels.length > 0) {
+    const hasLeetcode = isIntegrationEnabled(chapter, 'leetcode');
+    if (labels.length > 0 || hasLeetcode) {
       setAdditionalFieldValues({});
       setShowApplyModal(true);
     } else {
@@ -393,12 +423,30 @@ const ClubDetail = () => {
     try {
       setSubmittingTask(true);
       const labels = parseLabels(chapter?.additional_field_label);
+      const hasLeetcode = isIntegrationEnabled(chapter, 'leetcode');
+
+      let leetcodeUser = null;
+      if (hasLeetcode) {
+        const rawInput = fieldValues['leetcode_username'] || fieldValues['LeetCode Profile Link'] || fieldValues['LeetCode Username'] || '';
+        if (!rawInput.trim()) {
+          alert('Please enter your LeetCode profile link or username to apply for this club.');
+          setSubmittingTask(false);
+          return;
+        }
+        leetcodeUser = extractLeetCodeUsername(rawInput);
+        if (!leetcodeUser) {
+          alert('Could not extract a valid LeetCode username from your input. Please enter a valid profile URL or handle.');
+          setSubmittingTask(false);
+          return;
+        }
+      }
       
       // Perform strict validation check on custom fields
       if (labels.length > 0) {
         for (const label of labels) {
           if (!fieldValues[label] || !fieldValues[label].trim()) {
             alert(`Please enter your ${label}`);
+            setSubmittingTask(false);
             return;
           }
         }
@@ -412,7 +460,8 @@ const ClubDetail = () => {
           user_id: user?.id,
           role: 'member',
           status: 'pending',
-          additional_field_value: valPayload
+          additional_field_value: valPayload,
+          leetcode_username: leetcodeUser
         }]);
 
       if (error) throw error;
@@ -705,6 +754,16 @@ const ClubDetail = () => {
                 </div>
               )}
 
+              {isTutorViewEnabled && (isLeader || isSuperAdmin) && (
+                <button 
+                  className="btn btn-outline animate-hover" 
+                  onClick={() => setShowManageTutorsModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Shield size={16} /> Manage Class Tutors
+                </button>
+              )}
+
               {isLeader && (
                 <>
                   <button 
@@ -749,6 +808,15 @@ const ClubDetail = () => {
             onClick={() => setActiveTab('tasks')}
           >
             Tasks ({tasks.length})
+          </button>
+        )}
+        {canViewActivityTab && (
+          <button 
+            className={`btn ${activeTab === 'activity' ? 'btn-primary' : 'btn-outline'}`}
+            style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottom: activeTab === 'activity' ? '2px solid var(--primary-color)' : 'none', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            onClick={() => setActiveTab('activity')}
+          >
+            <Activity size={16} /> Activity
           </button>
         )}
         {isLeader && (
@@ -1613,6 +1681,19 @@ const ClubDetail = () => {
         </div>
       )}
 
+      {/* Tab Contents: Activity (Faculty, Tutors & Core Team Only) */}
+      {activeTab === 'activity' && canViewActivityTab && (
+        <LeetCodeActivityTab 
+          chapter={chapter}
+          members={memberships}
+          tasks={tasks}
+          completions={completions}
+          classTutors={classTutors}
+          onRefreshData={fetchClubData}
+          openPublicProfile={openPublicProfile}
+        />
+      )}
+
       {/* Tab Contents: Tasks */}
       {activeTab === 'tasks' && isApprovedMember && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1708,6 +1789,7 @@ const ClubDetail = () => {
                                           setTaskForm({ 
                                             title: task.title, 
                                             description: task.description || '', 
+                                            target_slug: task.target_slug || '',
                                             task_links: parsedLinks 
                                           });
                                           setShowTaskModal(true);
@@ -2072,8 +2154,12 @@ const ClubDetail = () => {
                   )}
                 </div>
               ))}
-              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem' }}>
-                Optional. Members must visit all provided links before they can submit completion.
+              <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem', lineHeight: '1.4' }}>
+                {hasLeetcodeIntegration ? (
+                  <span>Add any resource or LeetCode problem links (e.g. <code>https://leetcode.com/problems/two-sum/description</code>). LeetCode URLs will automatically be extracted for ground-truth verification.</span>
+                ) : (
+                  <span>Optional. Members must visit all provided links before they can submit completion.</span>
+                )}
               </small>
             </div>
 
@@ -2226,6 +2312,28 @@ const ClubDetail = () => {
               The club lead requires you to provide the following details in order to apply.
             </p>
             <form onSubmit={handleApplySubmit}>
+              {isIntegrationEnabled(chapter, 'leetcode') && (
+                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                  <label className="form-label" style={{ fontWeight: 600 }}>
+                    LeetCode Profile Link or Username <span style={{ color: 'var(--danger-color)' }}>*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="e.g. https://leetcode.com/u/john_doe/ or john_doe"
+                    value={additionalFieldValues['leetcode_username'] || ''}
+                    onChange={e => setAdditionalFieldValues({
+                      ...additionalFieldValues,
+                      leetcode_username: e.target.value
+                    })}
+                    required
+                  />
+                  <small style={{ color: 'var(--text-secondary)', display: 'block', marginTop: '0.35rem', fontSize: '0.8rem' }}>
+                    This club tracks LeetCode activity. Enter your LeetCode profile link or raw handle.
+                  </small>
+                </div>
+              )}
+
               {parseLabels(chapter?.additional_field_label).map((label, idx) => (
                 <div className="form-group" style={{ marginBottom: '1.5rem' }} key={idx}>
                   <label className="form-label" style={{ fontWeight: 600 }}>
@@ -2271,6 +2379,16 @@ const ClubDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Manage Class Tutors Modal */}
+      <ManageClassTutorsModal
+        isOpen={showManageTutorsModal}
+        onClose={() => setShowManageTutorsModal(false)}
+        chapter={chapter}
+        members={memberships}
+        classTutors={classTutors}
+        onRefreshData={fetchClubData}
+      />
 
       {/* Public Profile Modal */}
       <PublicProfileModal

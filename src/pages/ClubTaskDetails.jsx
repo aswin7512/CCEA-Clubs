@@ -14,9 +14,13 @@ import {
   Clock, 
   AlertCircle,
   TrendingUp,
-  Award
+  Award,
+  Code,
+  RefreshCw
 } from 'lucide-react';
 import PublicProfileModal from '../components/PublicProfileModal';
+import { evaluateLeetCodeSubmission } from '../lib/leetcodeScraper';
+import { extractLeetCodeUsername, parseLeetCodeSlugs } from '../lib/integrations';
 
 const parseTaskLinks = (taskLinkStr) => {
   if (!taskLinkStr) return [];
@@ -269,14 +273,50 @@ const ClubTaskDetails = () => {
     try {
       setSubmittingTask(true);
       
+      let isCompleted = true;
+      let verificationStatus = 'completed';
+      let rawStatusDisplay = null;
+      let lastVerifiedAt = null;
+
+      const effectiveTargetSlug = (task.target_slug && task.target_slug.trim() !== '')
+        ? task.target_slug
+        : extractSlugsFromTaskLinks(task.task_link).join(', ');
+
+      // If task requires LeetCode verification
+      if (effectiveTargetSlug && effectiveTargetSlug.trim() !== '') {
+        const handle = myMembership?.leetcode_username;
+        if (!handle || !handle.trim()) {
+          alert('You must set a LeetCode handle on your profile/membership to verify this task.');
+          setSubmittingTask(false);
+          return;
+        }
+
+        const evalResult = await evaluateLeetCodeSubmission(handle, effectiveTargetSlug);
+        verificationStatus = evalResult.verificationStatus;
+        rawStatusDisplay = evalResult.rawStatusDisplay;
+        lastVerifiedAt = new Date().toISOString();
+        isCompleted = verificationStatus === 'completed';
+
+        if (verificationStatus === 'not_done') {
+          alert(evalResult.message);
+        } else if (verificationStatus === 'attempted') {
+          alert(evalResult.message);
+        } else {
+          alert('Congratulations! Your LeetCode solution was verified as Accepted!');
+        }
+      }
+
       const { data, error: completeError } = await supabase
         .from('club_task_completions')
         .upsert({
           task_id: task.id,
           user_id: user.id,
-          is_completed: true,
+          is_completed: isCompleted,
+          verification_status: verificationStatus,
+          raw_status_display: rawStatusDisplay,
+          last_verified_at: lastVerifiedAt,
           feedback: feedbackText,
-          completed_at: new Date().toISOString()
+          completed_at: isCompleted ? new Date().toISOString() : null
         }, { onConflict: 'task_id,user_id' })
         .select()
         .single();
@@ -284,7 +324,9 @@ const ClubTaskDetails = () => {
       if (completeError) throw completeError;
 
       setMyCompletion(data);
-      alert('Task marked as completed!');
+      if (!task.target_slug && isCompleted) {
+        alert('Task marked as completed!');
+      }
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to mark task completed');
@@ -387,6 +429,44 @@ const ClubTaskDetails = () => {
                 <strong>Redirection Links:</strong> {parseTaskLinks(task.task_link).length}
               </p>
             )}
+          {(() => {
+            const effectiveTargetSlug = (task.target_slug && task.target_slug.trim() !== '')
+              ? task.target_slug
+              : extractSlugsFromTaskLinks(task.task_link).join(', ');
+            const extractedSlugs = parseLeetCodeSlugs(effectiveTargetSlug);
+            if (extractedSlugs.length === 0) return null;
+
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#60a5fa', fontWeight: 600 }}>
+                  <Code size={14} /> LeetCode Target(s):
+                </span>
+                {extractedSlugs.map(s => (
+                  <a
+                    key={s}
+                    href={`https://leetcode.com/problems/${s}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '0.25rem',
+                      backgroundColor: 'rgba(96, 165, 250, 0.15)',
+                      border: '1px solid rgba(96, 165, 250, 0.3)',
+                      color: '#93c5fd',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    {s} <ExternalLink size={10} />
+                  </a>
+                ))}
+              </div>
+            );
+          })()}
           </div>
 
           <h4 style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Task Description</h4>
@@ -486,48 +566,74 @@ const ClubTaskDetails = () => {
                 )}
               </div>
             ) : (
-              <div>
-                <h3 style={{ marginBottom: '1.25rem', fontSize: '1.25rem' }}>Submit Task Completion</h3>
-                {parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited && (
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '0.75rem', 
-                    padding: '1rem', 
-                    borderRadius: '0.5rem', 
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)', 
-                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                    color: '#f87171',
-                    fontSize: '0.9rem',
-                    marginBottom: '1.5rem',
-                    alignItems: 'center'
-                  }}>
-                    <AlertCircle size={18} />
-                    <span>To complete this task, you are required to click and open all the <strong>Task Links</strong> above first.</span>
-                  </div>
-                )}
+              (() => {
+                const effectiveTargetSlug = (task.target_slug && task.target_slug.trim() !== '')
+                  ? task.target_slug
+                  : extractSlugsFromTaskLinks(task.task_link).join(', ');
 
-                <form onSubmit={handleCompleteTaskSubmit}>
-                  <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                    <label className="form-label">Task Feedback (Optional)</label>
-                    <textarea
-                      className="form-control"
-                      rows={4}
-                      placeholder="Add any feedback, notes, or URL submission info for the core team..."
-                      value={feedbackText}
-                      onChange={e => setFeedbackText(e.target.value)}
-                      disabled={parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited}
-                    />
-                  </div>
+                return (
+                  <div>
+                    <h3 style={{ marginBottom: '1.25rem', fontSize: '1.25rem' }}>Submit Task Completion</h3>
+                    {parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited && (
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '0.75rem', 
+                        padding: '1rem', 
+                        borderRadius: '0.5rem', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        color: '#f87171',
+                        fontSize: '0.9rem',
+                        marginBottom: '1.5rem',
+                        alignItems: 'center'
+                      }}>
+                        <AlertCircle size={18} />
+                        <span>To complete this task, you are required to click and open all the <strong>Task Links</strong> above first.</span>
+                      </div>
+                    )}
 
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={submittingTask || (parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited)}
-                  >
-                    {submittingTask ? 'Submitting...' : 'Mark as Completed'}
-                  </button>
-                </form>
-              </div>
+                    <form onSubmit={handleCompleteTaskSubmit}>
+                      {effectiveTargetSlug && (
+                        <div style={{ padding: '0.85rem 1rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderRadius: '0.5rem', marginBottom: '1.25rem', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '0.875rem' }}>
+                          <div style={{ fontWeight: 600, color: '#60a5fa', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Code size={16} /> Automated Ground-Truth Verification
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)' }}>
+                            Target problem(s): <strong>{effectiveTargetSlug}</strong> • LeetCode Handle: <strong>{myMembership?.leetcode_username || 'Not set'}</strong>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                        <label className="form-label">Task Feedback (Optional)</label>
+                        <textarea
+                          className="form-control"
+                          rows={4}
+                          placeholder="Add any feedback, notes, or URL submission info for the core team..."
+                          value={feedbackText}
+                          onChange={e => setFeedbackText(e.target.value)}
+                          disabled={parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={submittingTask || (parseTaskLinks(task.task_link).length > 0 && !myCompletion?.is_visited)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        {effectiveTargetSlug ? <RefreshCw size={16} className={submittingTask ? 'spin' : ''} /> : null}
+                        {submittingTask 
+                          ? 'Verifying Solution...' 
+                          : effectiveTargetSlug 
+                          ? 'Verify & Complete Solution' 
+                          : 'Mark as Completed'
+                        }
+                      </button>
+                    </form>
+                  </div>
+                );
+              })()
             )}
           </motion.div>
         )}

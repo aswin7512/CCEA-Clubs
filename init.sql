@@ -30,6 +30,7 @@ CREATE TABLE public.club_chapters (
   status chapter_status DEFAULT 'pending',
   campus_lead_id UUID REFERENCES public.profiles(id),
   additional_field_label TEXT DEFAULT NULL,
+  feature_integrations JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -43,8 +44,19 @@ CREATE TABLE public.club_members (
   designation TEXT,
   assigned_by UUID REFERENCES public.profiles(id),
   additional_field_value TEXT DEFAULT NULL,
+  leetcode_username TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(chapter_id, user_id)
+);
+
+-- 4b. Create Club Class Tutors table for Tutor View tracking
+CREATE TABLE public.club_class_tutors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chapter_id UUID NOT NULL REFERENCES public.club_chapters(id) ON DELETE CASCADE,
+  class_name TEXT NOT NULL,
+  tutor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(chapter_id, class_name, tutor_id)
 );
 
 -- 5. Create Events table
@@ -252,6 +264,7 @@ CREATE TABLE public.club_member_tasks (
   title TEXT NOT NULL,
   description TEXT,
   task_link TEXT,
+  target_slug TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -266,6 +279,9 @@ CREATE TABLE public.club_task_completions (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   is_visited BOOLEAN NOT NULL DEFAULT false,
   is_completed BOOLEAN NOT NULL DEFAULT false,
+  verification_status TEXT DEFAULT 'not_done', -- 'not_done', 'attempted', 'completed'
+  raw_status_display TEXT DEFAULT NULL,
+  last_verified_at TIMESTAMPTZ,
   feedback TEXT,
   visited_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
