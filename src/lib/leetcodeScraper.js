@@ -14,9 +14,6 @@ curl 'https://leetcode.com/graphql' \
 async function fetchRecentSubmissions(username) {
   if (!username) return [];
 
-  const proxyUrl = 'https://corsproxy.io/?';
-  const targetUrl = 'https://leetcode.com/graphql';
-  
   const graphqlQuery = {
     query: `
       query userRecentSubmissions($username: String!) {
@@ -29,23 +26,37 @@ async function fetchRecentSubmissions(username) {
     variables: { username: username.trim() }
   };
 
-  try {
-    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(graphqlQuery)
-    });
+  // Endpoints to try in sequence:
+  // 1. /api/leetcode/graphql (Netlify server-side rewrite & Vite dev proxy - 100% CORS free!)
+  // 2. Public CORS proxies as backup
+  const endpoints = [
+    '/api/leetcode/graphql',
+    'https://corsproxy.io/?' + encodeURIComponent('https://leetcode.com/graphql'),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://leetcode.com/graphql')
+  ];
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(graphqlQuery)
+      });
+
+      if (!response.ok) continue;
+
+      const json = await response.json();
+      const list = json?.data?.recentSubmissionList;
+      if (Array.isArray(list)) {
+        return list;
+      }
+    } catch (err) {
+      console.warn(`LeetCode query failed via ${url}, trying fallback...`, err);
     }
-
-    const json = await response.json();
-    return json?.data?.recentSubmissionList || [];
-  } catch (error) {
-    console.error("CORS Proxy or Network failure:", error);
-    return [];
   }
+
+  console.error("All LeetCode API proxies failed.");
+  return [];
 }
 
 /**
